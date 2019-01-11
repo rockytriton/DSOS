@@ -1,14 +1,15 @@
 #include "arm/sysregs.h"
-
 #include "mm.h"
 
 .section ".text.boot"
 
 .globl _start
 _start:
-	mrs	x0, mpidr_el1	
-	and	x0, x0,#0xFF		// Check processor id
-	cbz	x0, master		// Hang for all non-primary CPU
+	mrs	x0, mpidr_el1
+	// Check processor id	
+	and	x0, x0, #0xFF 
+	// Currently only uses single core CPU, hangs all other cores.
+	cbz	x0, master		    
 	b	proc_hang
 
 proc_hang: 
@@ -20,10 +21,12 @@ proc_hang:
 
 	bl proc_init
 	mrs	x0, mpidr_el1
-	and	x0, x0,#0xFF
+	and	x0, x0, #0xFF
+	
+	// Ok, just say hi to the extra cores.
 	str x0, [sp, #-8]
-
 	bl  proc_hi
+
 	b	proc_hang_loop
 proc_hang_loop:
 	b 	proc_hang_loop
