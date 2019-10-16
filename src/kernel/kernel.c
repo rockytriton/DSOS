@@ -13,10 +13,15 @@ void setDone();
 int getEL();
 void setEL1();
 void doVideoCheck();
+void _Z10cpp_kernelv();
 
 int kernel_loading = 1;
 
 void kernel_main() {
+	_Z10cpp_kernelv();
+}
+
+void kernel_main2() {
     uart_init();
 	init_printf(0, putc);
 	printf("\r\n\r\nDreamSys OS 0.002 Loading...\r\n");
@@ -32,16 +37,18 @@ void kernel_main() {
 	printf("Kernel loaded, EL: %d\r\n", getEL());
     kernel_loading = 0;
 
-    doVideoCheck();
+    //doVideoCheck();
 
+	//_Z10cpp_kernelv();
     while(1) {
 
     }
 }
 
+
 void proc_init() {
 	while(kernel_loading) {
-		
+	
 	}
 }
 
@@ -51,6 +58,6 @@ void proc_hi(int p)
 }
 
 void okReset() {
-	
+	printf("DO RESET\n");
 }
 
