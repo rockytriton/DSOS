@@ -1,12 +1,14 @@
 
 ifeq ($(detected_OS),Darwin)
-	ARMGNU ?= aarch64-linux-gnu
+	#ARMGNU ?= aarch64-linux-gnu
+	ARMGNU ?= aarch64-unknown-linux-gnueabi
 else
 	#ARMGNU ?= aarch64-none-elf
-	ARMGNU ?= aarch64-linux-gnu
+	#ARMGNU ?= aarch64-linux-gnu
+	ARMGNU ?= aarch64-unknown-linux-gnueabi
 endif
 
-COPS = -nostdlib -nostartfiles -ffreestanding -Iinclude -mgeneral-regs-only -Wunused-variable -Wint-conversion -Wint-to-pointer-cast
+COPS = -std=c11 -nostdlib -nostartfiles -ffreestanding -Iinclude -mgeneral-regs-only -Wunused-variable -Wint-to-pointer-cast
 ASMOPS = -Iinclude 
 
 BUILD_DIR = build
@@ -24,7 +26,9 @@ $(BUILD_DIR)/%_c.o: $(SRC_DIR)/%.c
 
 $(BUILD_DIR)/%_cpp.o: $(SRC_DIR)/%.cpp
 	mkdir -p $(@D)
-	$(ARMGNU)-gcc -x c++ -c -nostdlib -nostartfiles -ffreestanding -Iinclude -Wunused-variable -Wint-to-pointer-cast -MMD $< -o $@
+	$(ARMGNU)-g++ -nodefaultlibs -fno-exceptions -nostdlib -nostartfiles -x c++ -fno-rtti -c -std=c++11 -Iinclude -Wunused-variable -Wint-to-pointer-cast -MMD $< -o $@
+
+#-nostdlib -nostartfiles -ffreestanding 
 
 $(BUILD_DIR)/%_s.o: $(SRC_DIR)/%.S
 	mkdir -p $(BUILD_DIR)/arch/arm64
@@ -32,7 +36,7 @@ $(BUILD_DIR)/%_s.o: $(SRC_DIR)/%.S
 	$(ARMGNU)-gcc $(ASMOPS) -MMD -c $< -o $@
 
 C_FILES = $(wildcard $(SRC_DIR)/*.c) $(wildcard $(SRC_DIR)/kernel/*.c)
-CPP_FILES = $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/kernel/*.cpp)
+CPP_FILES = $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/*/*.cpp) $(wildcard $(SRC_DIR)/drivers/*/*.cpp)
 ASM_FILES = $(wildcard $(SRC_DIR)/arch/arm64/*.S)
 OBJ_FILES = $(C_FILES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%_c.o)
 OBJ_FILES += $(ASM_FILES:$(SRC_DIR)/%.S=$(BUILD_DIR)/%_s.o)

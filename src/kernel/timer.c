@@ -95,3 +95,11 @@ void handle_timer_irq2( void )
 	printf("\r\n");
 
 }
+/*
+void _Unwind_Resume(void *p) {
+
+}
+void __gxx_personality_v0(void *p) {
+
+}
+*/

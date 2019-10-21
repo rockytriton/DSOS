@@ -22,7 +22,7 @@ void kernel_main() {
 }
 
 void kernel_main2() {
-    uart_init();
+    //uart_init();
 	init_printf(0, putc);
 	printf("\r\n\r\nDreamSys OS 0.002 Loading...\r\n");
 	irq_vector_init();
@@ -39,10 +39,6 @@ void kernel_main2() {
 
     //doVideoCheck();
 
-	//_Z10cpp_kernelv();
-    while(1) {
-
-    }
 }
 
 
