@@ -1,6 +1,7 @@
 #include "miniuart.h"
 #include "peripherals/gpio.h"
 #include "utils.h"
+#include "../gpio/gpio.h"
 
 #define IER_REG_EN_REC_INT (1 << 0)
 #define IER_REG_INT        (3 << 2) // Must be set to receive interrupts
@@ -18,6 +19,12 @@ namespace drivers {
     bool MiniUart::initialized = false;
 
     void MiniUart::init() {
+        gpio::setPinMode(14, gpio::PMAlt5);
+        gpio::setPinMode(15, gpio::PMAlt5);
+
+        gpio::setPinMode(18, gpio::PMOut);
+
+        /*
         reg32 selector = get32(GPFSEL1);
 
         selector &= ~(7<<12);                   // clean gpio14
@@ -31,6 +38,20 @@ namespace drivers {
         put32(GPPUDCLK0,(1<<14)|(1<<15));
         delay(150);
         put32(GPPUDCLK0,0);
+        */
+
+        gpio::GPIO()->pupdEnable = 0;
+        delay(150);
+        gpio::GPIO()->pupdClock0 |= (1 << 14) | (1 << 15);
+        delay(150);
+        gpio::GPIO()->pupdClock0 = 0;
+
+        delay(150);
+        gpio::GPIO()->pupdEnable = 2;
+        delay(150);
+        gpio::GPIO()->pupdClock0 |= (1 << 18);
+        delay(150);
+        gpio::GPIO()->pupdClock0 = 0;
 
         REGS_AUX->enables = 1;
         REGS_MU->control = 0;

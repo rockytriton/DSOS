@@ -2,6 +2,10 @@
 
 #include "peripherals/base.h"
 
+#ifdef __cplusplus 
+extern "C" {
+#endif
+
 #define MAIL_BASE   (PBASE +   0xB880) // Mailbox Base Address
 
 #define MAIL_READ      0x00 // Mailbox Read Register
@@ -22,7 +26,25 @@
 #define MAIL_COUNT    0x7 // Mailbox Channel 7: Counter
 #define MAIL_TAGS     0x8 // Mailbox Channel 8: Tags (ARM to VC)
 
+#define CLOCK_ID_EMMC		1
+#define CLOCK_ID_UART		2
+#define CLOCK_ID_ARM		3
+#define CLOCK_ID_CORE		4
+
 void mailboxWrite(uint8_t channel, uint32_t data);
 uint32_t mailboxRead(uint8_t channel);
 
+void addTag(int tag, int arg1, int arg2);
 
+
+int getTag(int tag) ;
+void *getTagData(int tag);
+
+void initTags() ;
+
+void processTags() ;
+
+
+#ifdef __cplusplus 
+}
+#endif

@@ -6,11 +6,11 @@
 
 const unsigned int interval = 200000;
 const unsigned int interval2 = 200000 * 50;
-unsigned int curVal = 0;
-unsigned int curVal2 = 0;
+static unsigned int curVal = 0;
+static unsigned int curVal2 = 0;
 
-int timersReceived = 0;
-int timers2Received = 0;
+static int timersReceived = 0;
+static int timers2Received = 0;
 
 void schedulerTick();
 
@@ -40,7 +40,7 @@ struct dwc_regs {
     unsigned int core_reset;
 };
 
-void timer_init ( void )
+void timer_init1234 ( void )
 {
 	curVal = get32(TIMER_CLO);
 	curVal2 = curVal + (interval2);
@@ -58,7 +58,7 @@ int countProcesses() {
 	return c;
 }
 
-void handle_timer_irq( void ) 
+void handle_timer_irqOLD( void ) 
 {
 	curVal += (interval);
 	put32(TIMER_C1, curVal);
@@ -73,6 +73,7 @@ void handle_timer_irq( void )
 }
 
 int getTemp();
+void onTimer();
 
 void handle_timer_irq2( void ) 
 {
@@ -94,6 +95,7 @@ void handle_timer_irq2( void )
 	printf ("\t TEMP: %d\r\n", getTemp());
 	printf("\r\n");
 
+	onTimer();
 }
 /*
 void _Unwind_Resume(void *p) {

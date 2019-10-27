@@ -6,6 +6,8 @@
 
 namespace dsos {
 
+    static const char *endl = "\r\n";
+
     class Logger {
     public:
         static Logger &inst();
@@ -31,6 +33,13 @@ namespace dsos {
             String s;
             toString(n, 16, true, s);
             print(s.c_str());
+        }
+
+        void printBinary(dword n) {
+            for (int i=0; i<32; i++) {
+                print((n & 0x80000000) ? "1" : "0");
+                n <<= 1;
+            }
         }
     };
 }

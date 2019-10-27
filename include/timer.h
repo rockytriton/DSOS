@@ -1,8 +1,21 @@
 #ifndef	_TIMER_H
 #define	_TIMER_H
 
-void timer_init ( void );
-void handle_timer_irq ( void );
-void handle_timer_irq2 ( void );
+#include "common.h"
+
+namespace dsos {
+
+enum ClockType {
+    CTEmmc = 1,
+    CTUart = 2,
+    CTArm = 3,
+    CTCore = 4
+};
+
+dword getClockRate(ClockType ct);
+void timerInit();
+void delayMs(dword ms);
+
+}
 
 #endif  /*_TIMER_H */

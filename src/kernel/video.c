@@ -36,6 +36,7 @@ static int pt_index = 0;
 
 #define TAG_CLOCK_ARM  3
 
+
 void addTag(int tag, int arg1, int arg2) {
     pt[pt_index++] = tag;
 
@@ -84,7 +85,7 @@ void addTag(int tag, int arg1, int arg2) {
         pt[pt_index++] = arg1;
         pt[pt_index++] = arg2;
         pt[pt_index++] = 0;
-    }
+    } 
 
     pt[pt_index] = 0;
 }
@@ -124,6 +125,36 @@ int getTag(int tag) {
     return val;
 }
 
+void *getTagData(int tag) {
+    int index = 2;
+    int val = 0;
+
+    printf("\r\n");
+
+    while( index < ( pt[PT_OSIZE] >> 2 ) )
+    {
+        if( pt[index] == tag ) {
+            printf("FOUND TAG: %d\r\n", tag);
+            int *tag_buffer = &pt[index];
+            int len = tag_buffer[T_ORESPONSE] & 0xFFFF;
+
+            printf("\tBUFFER: %d, LEN: %d\r\n", tag_buffer, len);
+
+            for (int i=0; i<len; i++) {
+                printf("\t%d = %d\r\n", i, tag_buffer[i]);
+            }
+
+            return &tag_buffer[T_OVALUE];
+        }
+
+        index += ( pt[index + 1] >> 2 ) + 3;
+    }
+            
+    printf("TAG NOT FOUND: %d\r\n", tag);
+
+    return 0;
+}
+
 void initTags() {
     for (int i=0; i<8192; i++) {
         pt[i] = 0;
@@ -145,6 +176,10 @@ void initTags() {
 void processTags() {
     pt[PT_OSIZE] = ( pt_index + 1 ) << 2;
     pt[PT_OREQUEST_OR_RESPONSE] = 0;
+
+    for (int i=0; i<10; i++) {
+        printf(" - %d", pt[i]);
+    }
     
     printf("VC SENDING: %d\r\n", pt);
 

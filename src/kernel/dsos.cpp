@@ -1,8 +1,13 @@
 
 #include "../drivers/miniuart/miniuart.h"
+#include "../drivers/gpio/gpio.h"
 #include "printf.h"
 #include "logger.h"
 #include "mm.h"
+#include "timer.h"
+
+#include "utils.h"
+#include "../drivers/emmc/emmc.h"
 
 extern "C" void kernel_main2(void);
 
@@ -12,6 +17,7 @@ extern "C" void uart_send(char c);
 extern "C" void putc ( void* p, char c);
 
 using namespace dsos;
+using namespace dsos::gpio;
 
 extern int lastAllocSize;
 
@@ -19,6 +25,7 @@ Logger &logger = Logger::inst();
 
 void cpp_kernel() {
     init_printf(0, putc);
+
 
     uart_send('\r');
     uart_send('\n');
@@ -30,38 +37,8 @@ void cpp_kernel() {
     uart_send('\r');
     uart_send('\n');
 
-    printf("TEST UNO\r\n");
-    printf("String Size: %d\r\n", sizeof(String));
-
-    printf("PAGE SIZE: %d\r\n", PAGE_SIZE);
-    printf("PAGES    : %d\r\n", PAGING_PAGES);
-    printf("PAGE MEM : %d\r\n", PAGING_MEMORY);
-
-    printf("Last alloc Size: %d\r\n", (dword)PAGE_SIZE);
-    printf("String Size: %d\r\n", stringLen("String"));
-
-    char a[32];
-    copyString(a, "TEST STRING");
-    printf("String Size: %d\r\n", stringLen(a));
-
-    logger.println(a);
-
-    String s("TEST ONE");
-
-    printf("Last alloc Size: %d\r\n", lastAllocSize);
-
-    logger.println(s.c_str());
-
-    String s2;
-    toString(8675309, s2);
-
-    logger.println(s2.c_str());
-
-    logger << "TEST TWO\r\n";
-    logger << "TEST " << s2.c_str() << "\r\n";
-
-    logger << "TEST DOS" << "\r\n" << "TEST TRES\r\n";
-    logger << "TEST " << 1 << "\r\n";
+    printf("TEST WITH GPIO DRIVER\r\n");
+    
     logger << "TEST " << 8675309 << "\r\n";
     
     dsos::drivers::MiniUart::inst()->send("Initialized 2 C++ MiniUart\r\n");
@@ -102,7 +79,24 @@ void cpp_kernel() {
     logger.printHex((dword)(uint64_t)p6);
     logger.println(" ");
 
-    while(1) {
+    bool on18 = false;
+    timerInit();
 
+    dsos::emmc::Emmc emmc;
+    emmc.cardInit();
+
+
+    while(1) {
+            delayMs(1000);
+
+            if (on18) {
+                GPIO()->outputSet.values[0] |= (1 << 18);
+                //logger.println("ON TIMER SET");
+            } else {
+                GPIO()->outputClear.values[0] |= (1 << 18);
+                //logger.println("ON TIMER CLEAR");
+            }
+            
+            on18 = !on18;
     }
 }

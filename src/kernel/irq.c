@@ -1,6 +1,5 @@
 #include "utils.h"
 #include "printf.h"
-#include "timer.h"
 #include "entry.h"
 #include "peripherals/irq.h"
 
@@ -25,6 +24,9 @@ const char *entry_error_messages[] = {
 	"FIQ_INVALID_EL0_32",		
 	"ERROR_INVALID_EL0_32"	
 };
+void timer_init ( void );
+void handle_timer_irq ( void );
+void handle_timer_irq2 ( void );
 
 void enable_interrupt_controller()
 {
@@ -44,11 +46,14 @@ void handle_irq(void)
 	int orig = irq;
 
 	while(irq) {
-		if (irq & SYSTEM_TIMER_IRQ_1) {
+		if (irq & SYSTEM_TIMER_IRQ_0) {
+			handle_timer_irq();
+			irq &= ~SYSTEM_TIMER_IRQ_0;
+		} else if (irq & SYSTEM_TIMER_IRQ_1) {
 			handle_timer_irq();
 			irq &= ~SYSTEM_TIMER_IRQ_1;
 		} else if (irq & SYSTEM_TIMER_IRQ_3) {
-			handle_timer_irq2();
+			handle_timer_irq();
 			irq &= ~SYSTEM_TIMER_IRQ_3;
 		} else if (irq & AUX_IRQ) {
 			handle_uart_irq();

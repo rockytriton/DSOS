@@ -84,6 +84,8 @@ void MemManager::free(void *p) {
 
 }
 
+
+
 int lastAllocSize = 0;
 
 void* operator new[](unsigned long size) { lastAllocSize = size; return mm.alloc(size); }
