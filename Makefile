@@ -2,10 +2,12 @@
 ifeq ($(detected_OS),Darwin)
 	#ARMGNU ?= aarch64-linux-gnu
 	ARMGNU ?= aarch64-unknown-linux-gnueabi
+	ARMGNU = /opt/gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu/bin/aarch64-linux-gnu
 else
 	#ARMGNU ?= aarch64-none-elf
 	#ARMGNU ?= aarch64-linux-gnu
 	ARMGNU ?= aarch64-unknown-linux-gnueabi
+	ARMGNU = /opt/gcc-arm-8.3-2019.03-x86_64-aarch64-linux-gnu/bin/aarch64-linux-gnu
 endif
 
 COPS = -std=c11 -nostdlib -nostartfiles -ffreestanding -Iinclude -mgeneral-regs-only -Wunused-variable -Wint-to-pointer-cast

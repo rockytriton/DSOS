@@ -41,6 +41,12 @@ namespace dsos {
                 n <<= 1;
             }
         }
+
+        void printBinaryVal(const char *pre, dword n) {
+            print(pre);
+            printBinary(n);
+            print("\r\n");
+        }
     };
 }
 

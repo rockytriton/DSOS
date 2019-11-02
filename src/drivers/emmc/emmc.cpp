@@ -5,6 +5,7 @@
 #include "../mailbox/mailbox.h"
 #include "timer.h"
 #include "utils.h"
+#include "../gpio/gpio.h"
 
 #define DEVICE_ID_SD_CARD	0
 #define DEVICE_ID_USB_HCD	3
@@ -29,10 +30,13 @@
 #define SD_CARD_REMOVAL         (1 << 7)
 #define SD_CARD_INTERRUPT       (1 << 8)
 
+#define EMMC_INTERRUPT		(PBASE + 0x30)
 
 namespace dsos {
 namespace emmc {
     const dword EMMC_BASE = PBASE + 0x00300000;
+    #define EMMC_INTERRUPT		(EMMC_BASE + 0x30)
+    #define EMMC_CONTROL1		(EMMC_BASE + 0x2C)
 
     EmmcRegs *EMMC = (EmmcRegs *)EMMC_BASE;
 
@@ -227,13 +231,48 @@ namespace emmc {
 
     bool powerOn() {
         Logger &logger = Logger::inst();
-        logger.println("Powering on SDCard...");
+        logger.println("Powering OFF SDCard...");
 
         logger.print("STATUS 0: ");
         logger.printBinary(EMMC->status);
         logger.println(" ");
 
         PowerData pd;
+
+        pd.deviceId = DEVICE_ID_SD_CARD;
+        pd.state = POWER_STATE_ON | POWER_STATE_WAIT;
+        mailbox::Mailbox::inst()->processTag(PROPTAG_SET_POWER_STATE, pd, sizeof(pd));
+
+
+        if (pd.state & POWER_STATE_NO_DEVICE || !(pd.state & POWER_STATE_ON)) {
+            logger << "Failed to power on\r\n";
+            return false;
+        }
+
+        logger.println("SDCard Powered On");
+
+        delayMs(2000);
+
+        pd.deviceId = DEVICE_ID_SD_CARD;
+        pd.state = POWER_STATE_OFF | POWER_STATE_WAIT;
+        mailbox::Mailbox::inst()->processTag(PROPTAG_SET_POWER_STATE, pd, sizeof(pd));
+
+        if (pd.state & POWER_STATE_NO_DEVICE || (pd.state & POWER_STATE_ON)) {
+            logger << "Failed to power off\r\n";
+            //return false;
+        }
+
+        logger.print("Powered off SD Card: ");
+        logger << (dword)pd.state;
+        logger << "\r\n";
+
+        delayMs(2000);
+
+        logger.println("Powering on SDCard...");
+        logger.print("STATUS 0: ");
+        logger.printBinary(EMMC->status);
+        logger.println(" ");
+
         pd.deviceId = DEVICE_ID_SD_CARD;
         pd.state = POWER_STATE_ON | POWER_STATE_WAIT;
         mailbox::Mailbox::inst()->processTag(PROPTAG_SET_POWER_STATE, pd, sizeof(pd));
@@ -253,7 +292,9 @@ namespace emmc {
 
     }
 
-
+    void handleCardInterrupt() {
+        logger.printBinaryVal("Handling Card Interrupt: ", EMMC->status);
+    }
 
     void handleInterrupts() {
         logger.print("IRQ 1: ");
@@ -298,8 +339,10 @@ namespace emmc {
         }
 
         if (flags.card) {
-            logger.println("readReady interrupt");
-            flags.readReady = 0;
+            logger.println("card interrupt");
+            flags.card = 0;
+
+            handleCardInterrupt();
         }
 
         if (flags.cardInsert) {
@@ -317,7 +360,7 @@ namespace emmc {
             EMMC->irqFlags |= 0xFFFF0000;
         }
 
-        EMMC->irqFlags = structToReg(&flags);
+        EMMC->irqMask = structToReg(&flags);
 
         logger.print("IRQ 2: ");
         logger.printBinary(EMMC->irqFlags);
@@ -338,7 +381,7 @@ namespace emmc {
         EMMC->arg1 = arg;
         EMMC->commandTransferMode = commandReg;
 
-        logger.print("HANDLING INTERRUPTS: ");
+        logger.print("HANDLING INTERRUPTS 0: ");
         logger.printBinary(EMMC->irqFlags);
         logger.println(" ");
 
@@ -346,13 +389,13 @@ namespace emmc {
         dword irpts = EMMC->irqFlags;
 
 
-        logger.print("HANDLING INTERRUPTS: ");
+        logger.print("HANDLING INTERRUPTS 1: ");
         logger.printBinary(irpts);
         logger.println(" ");
 
         EMMC->irqFlags = 0xFFFF0001;
 
-        logger.print("HANDLING INTERRUPTS: ");
+        logger.print("HANDLING INTERRUPTS 2: ");
         logger.printBinary(EMMC->irqFlags);
         logger.println(" ");
 
@@ -384,6 +427,10 @@ namespace emmc {
     }
 
     bool Emmc::cardReset() {
+	    dword control1 = get32 (EMMC_CONTROL1);
+
+        logger.printBinaryVal("CONTROL GET32: ", control1);
+
         union {
             EmmcControl1 ctrl1;
             dword n = EMMC->control[1];
@@ -395,25 +442,12 @@ namespace emmc {
 
         EMMC->control[1] = u.n;
 
-        volatile int cycles = 0;
-         int MAX_CYCLES = 10000000;
-
-
-
-        logger.print("CONTROL1 1: ");
-        logger.printBinary(EMMC->control[1]);
-        logger.println(" ");
-
         logger.println("CARD RESETING...");
 
         if (!waitTimeout(&EMMC->control[1], (7 << 24), 0)) {
             logger.println("CARD REST TIMEOUT");
             return false;
         }
-
-        logger.print("STATUS 1: ");
-        logger.printBinary(EMMC->status);
-        logger.println(" ");
 
         logger.println("Checking for inserted card....");
 
@@ -422,69 +456,30 @@ namespace emmc {
             return false;
         }
 
-        logger.print("STATUS 2: ");
-        logger.printBinary(EMMC->status);
-        logger.println(" ");
-
-
         logger.println("Found A Card");
 
         EMMC->control2 = 0;
 
         dword rate = getClockRate();
 
-        logger.print("CONTROL1 2a: ");
-        logger.printBinary(EMMC->control[1]);
-        logger.println(" ");
-
         u.n = EMMC->control[1];
-
-        logger.print("CONTROL1 2b: ");
-        logger.printBinary(u.n);
-        logger.println(" ");
-
         u.ctrl1.intClockEnable = 1;
-
-        logger.print("CONTROL1 2c: ");
-        logger.printBinary(u.n);
-        logger.println(" ");
 
         u.n |= getClockDivider(dsos::getClockRate(CTEmmc), SD_CLOCK_ID);
 
-        logger.print("CONTROL1 2d: ");
-        logger.printBinary(u.n);
-        logger.println(" ");
-
         u.n &= ~(0xf << 16);
-
-        logger.print("CONTROL1 2e: ");
-        logger.printBinary(u.n);
-        logger.println(" ");
-
         u.n |= (11 << 16);
 
-        logger.print("CONTROL1 2f: ");
-        logger.printBinary(u.n);
-        logger.println(" ");
-
-        logger.print("CONTROL1 2: ");
-        logger.printBinary(EMMC->control[1]);
-        logger.println(" ");
-
         EMMC->control[1] = u.n;
-
-        logger.print("CONTROL1 3: ");
-        logger.printBinary(EMMC->control[1]);
-        logger.println(" ");
+        
+        control1 = get32 (EMMC_CONTROL1);
 
         if (!waitTimeout(&EMMC->control[1], 0b10, 1)) {
             logger.println("SD Clock Not Stable");
             return false;
         }
-
-        logger.print("CONTROL1 4: ");
-        logger.printBinary(EMMC->control[1]);
-        logger.println(" ");
+        
+        control1 = get32 (EMMC_CONTROL1);
 
         logger.println("Enabling SD Clock...");
 
@@ -492,84 +487,46 @@ namespace emmc {
         EMMC->control[1] |= 4;
         delayMs(3);
 
-        logger.print("CONTROL1 5: ");
-        logger.printBinary(EMMC->control[1]);
-        logger.println(" ");
+        EmmcIrqFlags flags;
+        flags.cmdDone = 1;
+        flags.cardRemove = 1;
 
-        logger.print("IRQ 00: ");
-        logger.printBinary(EMMC->irqFlags);
-        logger.println(" ");
-        
-        EMMC->irqFlags = 0xFFFFFFFF;
-
-        logger.print("IRQ 01: ");
-        logger.printBinary(EMMC->irqFlags);
-        logger.println(" ");
+        dword val = structToReg(&flags);
+        EMMC->irqFlags = val;
 
         EMMC->irqEnable = 0;
         EMMC->irqFlags = 0xFFFFFFFF;
         dword irptMask = 0xFFFFFFFF & ~(SD_CARD_INTERRUPT);
-        logger.print("IRQ 0a: ");
-        logger.printBinary(EMMC->irqFlags);
+
+        EMMC->irqMask = 7 << 17;
+
+        delayMs(2000);
+        dword in = get32(EMMC_INTERRUPT);
+        logger.printBinaryVal("\r\n\r\nFROMGET32 1: ", EMMC->irqFlags);
+        logger.printBinaryVal("\r\n\r\nFROMGET32 1 (IRPT): ", EMMC->irqMask);
+        delayMs(2000);
+
+        in = get32(EMMC_INTERRUPT);
+        logger.printBinaryVal("\r\n\r\nFROMGET32 2: ", EMMC->irqFlags);
+        logger.printBinaryVal("\r\n\r\nFROMGET32 2 (IRPT): ", EMMC->irqMask);
+        logger.println(" ");
+        
+        EMMC->irqMask = irptMask;
+        delayMs(2000);
+
+        in = get32(EMMC_INTERRUPT);
+        logger.printBinaryVal("\r\n\r\nFROMGET32 3: ", EMMC->irqFlags);
+        logger.printBinaryVal("\r\n\r\nFROMGET32 3 (IRPT): ", EMMC->irqMask);
         logger.println(" ");
 
-        logger.print("IRQ 0aa: ");
-        logger.printBinary(irptMask);
-        logger.println(" ");
-
-        dword d = 0xFEFEFEFE;
-        memcpy((byte *)&d, (byte *)0x3F300030, 4);
-        logger.print("IRQ 0ab: ");
-        logger.printBinary(d);
-        logger.println(" ");
-        logger.print("IRQ 0ac: ");
-        d = 0xFFFFFFFF;
-        memcpy((byte *)0x3F300030, (byte *)&d, 4);
-        logger.printBinary(EMMC->irqFlags);
-        logger.println(" ");
-        logger.print("IRQ 0ad: ");
-        logger.printBinary(0b11000000000000000000000000000001);
-        logger.println(" ");
-        logger.print("IRQ 0ae: ");
-        logger.printBinary(0b1000001000100110);
-        logger.println(" ");
-        logger.print("IRQ 0af: ");
-        logger.printBinary(0b1000001000100111);
-        logger.println(" ");
-
-        EMMC->irqFlags = irptMask;
-
-        logger.print("IRQ 0b: ");
-        logger.printBinary(EMMC->irqFlags);
-        logger.println(" ");
         delayMs(3);
-
-        logger.print("IRQ 0c: ");
-        logger.printBinary(EMMC->irqFlags);
-        logger.println(" ");
 
         transferBlocks = 0;
         lastCommandReg = 0;
         lastSuccess = 0;
         blockSize = 0;
-
-        //printCommand(commands[0]);
-        //printCommand(commands[1]);
-        //printCommand(commands[2]);
-        //printCommand(commands[3]);
-        ////printCommand(commands[4]);
-
-        logger.print("STATUS 3: ");
-        logger.printBinary(EMMC->status);
-        logger.println(" ");
         
         command(GO_IDLE, 0, 2000);
-
-        logger.print("STATUS 4: ");
-        logger.printBinary(EMMC->status);
-        logger.println(" ");
-
-        //CommandType
 
         return true;
     }
@@ -625,6 +582,19 @@ namespace emmc {
     }
 
     bool Emmc::cardInit() {
+
+        gpio::setPinMode(34, gpio::PinMode::PMIn);
+        gpio::setPinMode(35, gpio::PinMode::PMIn);
+        gpio::setPinMode(36, gpio::PinMode::PMIn);
+        gpio::setPinMode(37, gpio::PinMode::PMIn);
+        gpio::setPinMode(38, gpio::PinMode::PMIn);
+        gpio::setPinMode(39, gpio::PinMode::PMIn);
+        gpio::setPinMode(48, gpio::PinMode::PMAlt3);
+        gpio::setPinMode(49, gpio::PinMode::PMAlt3);
+        gpio::setPinMode(50, gpio::PinMode::PMAlt3);
+        gpio::setPinMode(51, gpio::PinMode::PMAlt3);
+        gpio::setPinMode(52, gpio::PinMode::PMAlt3);
+
         if (!powerOn()) {
             return false;
         }
