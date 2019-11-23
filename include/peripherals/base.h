@@ -3,9 +3,9 @@
 
 #ifndef __ASSEMBLER__
 #include <stdint.h>
+extern unsigned int PBASE;
 #endif
 
-#define PBASE 0x3F000000
 
 #define PERIPHERALS_BASE 0x20000000
 //#define DWC_REGS_BASE          (PERIPHERALS_BASE + 0x980000)

@@ -2,9 +2,10 @@
 
 void dmb();
 
-static unsigned short mem_map [ PAGING_PAGES ] = {0,};
+static unsigned short mem_map [ 0x3ec00 /*was PAGING_PAGES */ ] = {0,};
 
 int numPages = 0;
+
 
 unsigned long allocPage()
 {

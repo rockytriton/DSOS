@@ -3,6 +3,9 @@
 
 .section ".text.boot"
 
+.globl PBASE
+PBASE: .dword 
+
 .globl _start
 _start:
 	mrs	x0, mpidr_el1
@@ -32,6 +35,8 @@ proc_hang_loop:
 	b 	proc_hang_loop
 
 master:
+	bl setupPeripheralBase
+	
 	ldr x0, =SCTLR_VALUE_MMU_DISABLED
 	msr sctlr_el1, x0
 
@@ -70,3 +75,30 @@ getEL:
 	lsr x0, x0, #2
 	ret
 
+.global setupPeripheralBase
+setupPeripheralBase:
+	//default with PIB3 base
+	ldr x0, =0x3F000000
+	ldr x1, addr_PBASE
+	str x0, [x1]
+
+	//read cpu info..
+	mrs	x0, midr_el1
+	//read primary part number
+	lsr x0, x0, #4
+	and x0, x0, #0x00000FFF
+
+	//0xD03 is PI3B
+	cmp x0, #0xD03
+	b.eq PI3B
+
+	//otherwise assume PI4
+PI4:
+	ldr x0, =0xFE000000
+	ldr x1, addr_PBASE
+	str x0, [x1]
+	
+PI3B:	
+	ret
+
+addr_PBASE : .dword PBASE
