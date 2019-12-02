@@ -1,18 +1,17 @@
-#include "mini_uart.h"
-#include "printf.h"
+
 #include "utils.h"
 #include "timer.h"
-#include "irq.h"
+#include <sys/irq.h>
 #include "scheduler.h"
 #include "fork.h"
 #include "mm.h"
-#include "mailbox.h"
-#include <stdint.h>
+#include <mailbox/mailbox.h>
+#include "devices.h"
 
-#pragma pack(1)
-
-#define PACKED
-#define FF		__attribute__ ((packed))
+#include <peripherals/base.h>
+#include <log.h>
+#include <common.h>
+#include <lib/dsstring.h>
 
 void putc ( void* p, char c );
 void setDone();
@@ -25,6 +24,7 @@ int kernel_loading = 1;
 typedef uint8_t byte;
 typedef uint16_t word;
 typedef uint32_t dword;
+
 
 struct CHSAddress
 {
@@ -53,35 +53,46 @@ struct MasterBootRecord
 int getId();
 
 void kernel_main() {
-    uart_init();
-	init_printf(0, putc);
-	printf("\r\n\r\nDreamSys OS 0.002 Loading...\r\n");
-	printf("EL: %d\r\n", getEL());
-	irq_vector_init();
-	printf("IRQ Vectors Initialized\r\n");
-	timer_init();
-	printf("Timer Initialized\r\n");
-	enable_interrupt_controller();
-	printf("Interrupt Controller Enabled\r\n");
-	enable_irq();
-	printf("IRQ Enabled (%x, %x)\r\n", current->prev, current->next);
 	
-	printf("PI MODEL ID: %x - %d - %x\r\n", getId() & 0xFFF, PAGING_PAGES, PAGING_PAGES);
+	irq_vector_init();
+	timer_init();
+	enable_interrupt_controller();
+	enable_irq();
+
+	dev_load_devices();
+
+	log_print("\r\n\r\nDreamSys OS 0.002 Loading...\r\n");
+	
+	log_hex(0x2233, 6);
+	log_println(" ");
+
+	dword cr = mailbox_clock_rate(CTCore);
+
+	log_println("Clock Rate: %d", cr);
+	
+
+	char a[32];
+	str_copy(a, "A STRING");
+	log_println("Copied String: %s", a);
+	
+	log_print("PROD ID: %x - %d - %x - %s\r\n", getId() & 0xFFF, PAGING_PAGES, PAGING_PAGES, a);
 
 	struct MasterBootRecord mbr;
 
 	mbr.partitions[0].firstLBASector = 5;
 
-	printf("LBA: %d - %d\r\n", mbr.partitions[0].firstLBASector, sizeof(struct MasterBootRecord));
+	log_print("LBA: %d - %d\r\n", mbr.partitions[0].firstLBASector, sizeof(struct MasterBootRecord));
 
-	printf("Kernel loaded, EL: %d\r\n", getEL());
+	log_print("Kernel loaded, EL: %d\r\n", getEL());
+
     kernel_loading = 0;
-
-    doVideoCheck();
 
     while(1) {
 
     }
+
+    doVideoCheck();
+
 }
 
 void proc_init() {
@@ -99,3 +110,15 @@ void okReset() {
 	
 }
 
+void assert(bool b, const char *msg) {
+	if (!b) {
+		log_println(" ");
+		log_println("SYSTEM HALT");
+		log_println(msg);
+
+		while(true) {
+			asm volatile ("wfi");
+		}
+	}
+
+}

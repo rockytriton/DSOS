@@ -112,7 +112,7 @@ static char a2i(char ch, char** src,int base,int* nump)
 
 static void putchw(void* putp,putcf putf,int n, char z, char* bf)
     {
-    char fc=z? '0' : ' ';
+    char fc=z? '0' : '0';
     char ch;
     char* p=bf;
     while (*p++ && n > 0)
@@ -203,10 +203,10 @@ void tfp_format(void* putp,putcf putf,char *fmt, va_list va)
 
 
 void init_printf(void* putp,void (*putf) (void*,char))
-    {
+{
     stdout_putf=putf;
     stdout_putp=putp;
-    }
+}
 
 int printing = 0;
 

@@ -3,9 +3,6 @@
 
 .section ".text.boot"
 
-.globl PBASE
-PBASE: .dword 
-
 .globl _start
 _start:
 	mrs	x0, mpidr_el1
@@ -75,6 +72,14 @@ getEL:
 	lsr x0, x0, #2
 	ret
 
+.globl getPN
+getPN:
+	mrs	x0, midr_el1
+	//read primary part number
+	lsr x0, x0, #4
+	and x0, x0, #0x00000FFF
+	ret
+
 .global setupPeripheralBase
 setupPeripheralBase:
 	//default with PIB3 base
@@ -89,7 +94,10 @@ setupPeripheralBase:
 	and x0, x0, #0x00000FFF
 
 	//0xD03 is PI3B
-	cmp x0, #0xD03
+	//ldr x2, addr_CPUVER
+	//str x0, [x2]
+
+	cmp x0, #0xD08
 	b.eq PI3B
 
 	//otherwise assume PI4
@@ -100,5 +108,8 @@ PI4:
 	
 PI3B:	
 	ret
+
+.globl PBASE
+PBASE: .dword
 
 addr_PBASE : .dword PBASE

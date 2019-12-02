@@ -1,7 +1,8 @@
 #include "mm.h"
-#include "mailbox.h"
-#include "printf.h"
+//#include "mailbox.h"
+#include "log.h"
 
+/*
 static int pt[8192] __attribute__((aligned(16)));
 static int pt_index = 0;
 
@@ -41,29 +42,29 @@ void addTag(int tag, int arg1, int arg2) {
 
     if (tag == TAG_ALLOCATE_BUFFER) {
         pt[pt_index++] = 8;
-        pt[pt_index++] = 8; /* Request */
+        pt[pt_index++] = 8;
         pt[pt_index++] = 4096;
         pt_index += 1;
     } else if (tag == TAG_SET_PHYSICAL_SIZE || tag == TAG_SET_VIRTUAL_SIZE) {
         pt[pt_index++] = 8;
-        pt[pt_index++] = 8; /* Request */
-        pt[pt_index++] = arg1; /* Width */
-        pt[pt_index++] = arg2; /* Height */
+        pt[pt_index++] = 8; 
+        pt[pt_index++] = arg1; 
+        pt[pt_index++] = arg2; 
     } else if (tag == TAG_SET_DEPTH) {
         pt[pt_index++] = 4;
-        pt[pt_index++] = 4; /* Request */
+        pt[pt_index++] = 4; 
         pt[pt_index++] = arg1;
     } else if (tag == TAG_GET_PITCH) {
         pt[pt_index++] = 4;
-        pt[pt_index++] = 4; /* Request */
+        pt[pt_index++] = 4; 
         pt_index += 1;
     } else if (tag == TAG_GET_PHYSICAL_SIZE ) {
         pt[pt_index++] = 8;
-        pt[pt_index++] = 8; /* Request */
+        pt[pt_index++] = 8; 
         pt_index += 2;
     } else if (tag == TAG_GET_DEPTH ) {
         pt[pt_index++] = 4;
-        pt[pt_index++] = 4; /* Request */
+        pt[pt_index++] = 4; 
         pt_index += 1;
     } else if (tag == TAG_GET_BOARD_MODEL || 
                tag == TAG_GET_BOARD_REVISION ||  
@@ -71,16 +72,16 @@ void addTag(int tag, int arg1, int arg2) {
                tag == TAG_GET_BOARD_MAC_ADDRESS ||  
                tag == TAG_GET_BOARD_SERIAL) {
         pt[pt_index++] = 8;
-        pt[pt_index++] = 8; /* Request */
+        pt[pt_index++] = 8; 
         pt_index += 2;
     } else if (tag == TAG_GET_MAX_CLOCK_RATE || tag == TAG_GET_CLOCK_RATE) {
         pt[pt_index++] = 8;
-        pt[pt_index++] = 0; /* Request */
+        pt[pt_index++] = 0; 
         pt[pt_index++] = arg1;
         pt[pt_index++] = 0;
     } else if (tag == TAG_SET_CLOCK_RATE ) {
         pt[pt_index++] = 12;
-        pt[pt_index++] = 0; /* Request */
+        pt[pt_index++] = 0; 
         pt[pt_index++] = arg1;
         pt[pt_index++] = arg2;
         pt[pt_index++] = 0;
@@ -95,19 +96,19 @@ int getTag(int tag) {
     int index = 2;
     int val = 0;
 
-    printf("\r\n");
+    log_print("\r\n");
 
     while( index < ( pt[PT_OSIZE] >> 2 ) )
     {
         if( pt[index] == tag ) {
-            printf("FOUND TAG: %d\r\n", tag);
+            log_print("FOUND TAG: %d\r\n", tag);
             int *tag_buffer = &pt[index];
             int len = tag_buffer[T_ORESPONSE] & 0xFFFF;
 
-            printf("\tBUFFER: %d, LEN: %d\r\n", tag_buffer, len);
+            log_print("\tBUFFER: %d, LEN: %d\r\n", tag_buffer, len);
 
             for (int i=0; i<len; i++) {
-                printf("\t%d = %d\r\n", i, tag_buffer[i]);
+                log_print("\t%d = %d\r\n", i, tag_buffer[i]);
             }
 
             int *pData = &tag_buffer[T_OVALUE];
@@ -119,7 +120,7 @@ int getTag(int tag) {
         index += ( pt[index + 1] >> 2 ) + 3;
     }
             
-    printf("TAG NOT FOUND: %d\r\n", tag);
+    log_print("TAG NOT FOUND: %d\r\n", tag);
 
     return val;
 }
@@ -129,16 +130,12 @@ void initTags() {
         pt[i] = 0;
     }
 
-    /* Fill in the size on-the-fly */
     pt[PT_OSIZE] = 12;
 
-    /* Process request (All other values are reserved!) */
     pt[PT_OREQUEST_OR_RESPONSE] = 0;
 
-    /* First available data slot */
     pt_index = 2;
 
-    /* NULL tag to terminate tag list */
     pt[pt_index] = 0;
 }
 
@@ -146,16 +143,16 @@ void processTags() {
     pt[PT_OSIZE] = ( pt_index + 1 ) << 2;
     pt[PT_OREQUEST_OR_RESPONSE] = 0;
     
-    printf("VC SENDING: %d\r\n", pt);
+    log_print("VC SENDING: %d\r\n", pt);
 
 	mailboxWrite(MAIL_TAGS, pt);
     int result = mailboxRead(MAIL_TAGS);
 
-    printf("VC RECEIVED: %d\r\n", result);
+    log_print("VC RECEIVED: %d\r\n", result);
 }
 
 void doVideoCheck() {
-    printf("oh checking: %d\r\n", pt);
+    log_print("oh checking: %d\r\n", pt);
 
     initTags();
     
@@ -191,18 +188,18 @@ void doVideoCheck() {
 
     volatile unsigned char* fb = (unsigned char*)getTag(TAG_ALLOCATE_BUFFER);
 
-    printf("ALLOC BUFFER: %d\r\n", fb);
+    log_print("ALLOC BUFFER: %d\r\n", fb);
 
     fb = (unsigned char *)((int)fb & 0x3FFFFFFF);
 
-    printf("ALLOC BUFFER: %d\r\n", fb);
+    log_print("ALLOC BUFFER: %d\r\n", fb);
 
     initTags();
     addTag( TAG_GET_CLOCK_RATE, TAG_CLOCK_ARM, 0 );
     processTags();
 
     int cr = pt[6];
-    printf("CR: %d\r\n", cr);
+    log_print("CR: %d\r\n", cr);
 
     initTags();
     addTag( TAG_GET_MAX_CLOCK_RATE, TAG_CLOCK_ARM, 0 );
@@ -211,7 +208,7 @@ void doVideoCheck() {
     getTag(TAG_GET_MAX_CLOCK_RATE);
     cr = pt[6];
 
-    printf("SETTING CR: %d\r\n", cr);
+    log_print("SETTING CR: %d\r\n", cr);
 
     initTags();
     addTag( TAG_SET_CLOCK_RATE, TAG_CLOCK_ARM, cr );
@@ -222,7 +219,7 @@ void doVideoCheck() {
     processTags();
 
     cr = pt[6];
-    printf("CR: %d\r\n", cr);
+    log_print("CR: %d\r\n", cr);
 
     int pixel_offset = 0;
     int pitch = 5120;
@@ -238,7 +235,7 @@ void doVideoCheck() {
 
     while(1) {
         frames++;
-        printf("FRAMES: %d\r\n", frames);
+        log_print("FRAMES: %d\r\n", frames);
 
         bb++;
 
@@ -271,16 +268,12 @@ void doVideoCheck() {
             }
         }
     }
-/*
-    frame_count++;
-    if( calculate_frame_count )
-    {
-        calculate_frame_count = 0;
 
-        // Number of frames in a minute, divided by seconds per minute 
-        float fps = (float)frame_count / 60;
-        printf( "FPS: %.2f\r\n", fps );
-
-        frame_count = 0;
-    }*/
 }
+
+*/
+
+void dmb() {
+
+}
+

@@ -1,5 +1,4 @@
 #include "utils.h"
-#include "printf.h"
 #include "peripherals/timer.h"
 #include "mm.h"
 #include "scheduler.h"
@@ -81,17 +80,17 @@ void handle_timer_irq2( void )
 	put32(TIMER_C3, curVal2);
 	put32(TIMER_CS, get32(TIMER_CS) & TIMER_CS_M3);
 
-	printf("Timer interrupts received %d\r\n", timersReceived);
-	printf("Timer2 interrupts received %d\r\n", timers2Received);
-	printf("Memory Usage:\r\n");
-	printf("\tMax Memory : %d mb\r\n", PAGING_PAGES * PAGE_SIZE / 1024 / 1024);
-	printf("\tUsed Memory: %d mb (%d kb)\r\n", numPages * PAGE_SIZE / 1024 / 1024, numPages * PAGE_SIZE / 1024);
-	printf("\tFree Memory: %d mb\r\n", ((PAGING_PAGES * PAGE_SIZE) - (numPages * PAGE_SIZE)) / 1024 / 1024);
-	printf("Processor Info:\r\n");
-	printf("\tCurrent Process ID : %d\r\n", current->pId);
-	printf("\tCurrent Process Adr: %X\r\n", current);
-	printf("\tNumber of Processes: %d\r\n", countProcesses());
-	printf ("\t TEMP: %d\r\n", getTemp());
-	printf("\r\n");
+	log_print("Timer interrupts received %d\r\n", timersReceived);
+	log_print("Timer2 interrupts received %d\r\n", timers2Received);
+	log_print("Memory Usage:\r\n");
+	log_print("\tMax Memory : %d mb\r\n", PAGING_PAGES * PAGE_SIZE / 1024 / 1024);
+	log_print("\tUsed Memory: %d mb (%d kb)\r\n", numPages * PAGE_SIZE / 1024 / 1024, numPages * PAGE_SIZE / 1024);
+	log_print("\tFree Memory: %d mb\r\n", ((PAGING_PAGES * PAGE_SIZE) - (numPages * PAGE_SIZE)) / 1024 / 1024);
+	log_print("Processor Info:\r\n");
+	log_print("\tCurrent Process ID : %d\r\n", current->pId);
+	log_print("\tCurrent Process Adr: %X\r\n", current);
+	log_print("\tNumber of Processes: %d\r\n", countProcesses());
+	log_print ("\t TEMP: %d\r\n", getTemp());
+	log_print("\r\n");
 
 }

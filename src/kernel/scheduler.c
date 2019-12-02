@@ -1,5 +1,4 @@
 #include "scheduler.h"
-#include "printf.h"
 
 static struct Task initTask = { {0,0,0,0,0,0,0,0,0,0,0,0,0},0,0,1,0,0,0,0};
 
