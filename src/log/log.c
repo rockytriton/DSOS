@@ -53,7 +53,6 @@ void log_num(dword n) {
 void log_hex(dword n, byte size) {
     char buff[32];
     tfp_sprintf(buff, "%%%dX", size);
-    log_println("log_hex(%s)", buff);
 
     log_print(buff, n);
 }
@@ -62,8 +61,44 @@ void log_bin(dword n, byte size) {
 
 }
 
-void log_dump(byte *b, dword size, byte columns) {
+void * memset (void *dest, int val, dword len)
+{
+  unsigned char *ptr = (byte *)dest;
+  while (len-- > 0)
+    *ptr++ = val;
+  return dest;
+}
 
+
+void log_dump(byte *b, dword size, byte columns) {
+    char ascii[256];
+    memset(ascii, 0, 256);
+    int a = 0;
+
+    for (int i=0; i<size; i++, a++) {
+        bool newRow = (i % columns) == 0;
+
+        if (newRow) {
+            log_print("    ");
+            log_print(ascii);
+            log_println(" ");
+            memset(ascii, 0, 256);
+            a = 0;
+        }
+
+        log_hex(((byte *)b)[i], 2);
+        char c = (char)((byte *)b)[i];
+        if (c >= 0x20)
+            ascii[a] = c;
+        else 
+            ascii[a] = '.';
+
+        log_putch(' ');
+    }
+
+    log_print("    ");
+    log_print(ascii);
+    log_println(" ");
 }
 
 

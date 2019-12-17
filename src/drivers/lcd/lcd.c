@@ -3,6 +3,8 @@
 #include "../spi/spi.h"
 #include <sys/timer.h>
 #include <log.h>
+#include "mm.h"
+#include "../dma/dmachannel.h"
 
 #define LCD_X_MAXPIXEL  480  //LCD width maximum memory 
 #define LCD_Y_MAXPIXEL  320 //LCD height maximum memory
@@ -27,6 +29,13 @@
 #define BRRED 		   0XFC07
 #define GRAY  		   0X8430
 
+
+#define LCD_RESET 25
+#define LCD_DC 24
+#define LCD_CS 8
+
+word dmaData[(320 * 480) + 0xFF];
+
 byte *cmds[] = {
     {0xCF, 0x00, 0x83, 0x30},
     {0xED, 0x64, 0x03, 0x12, 0x81},
@@ -48,6 +57,51 @@ byte *cmds[] = {
     {0x29},
     //wait 20ms
 };
+
+static int init_sequence[] = {
+    -1, 0xF0, 0xC3,
+    -1, 0xF0, 0x96,
+	-1, 0x36, 0x68,
+	-1, 0x3A, 0x05,
+	-1, 0xB0, 0x80,
+	-1, 0xB6, 0x20, 0x02,
+	-1, 0xB5, 0x02, 0x02, 0x00, 0x04,
+	-1, 0xB1, 0x80, 0x10,
+	-1, 0xB4, 0x00,
+	-1, 0xB7, 0xC6,
+	-1, 0xC5, 0x5D,
+	-1, 0xE4, 0x31,
+	-1, 0xE8, 0x40, 0x8A, 0x00, 0x00, 0x29, 0x19, 0xA5, 0x33,
+	-1, 0xC2,
+	-1, 0xA7,
+	-1, 0xE0, 0xF0, 0x09, 0x13, 0x12, 0x12, 0x2B, 0x3C, 0x44, 0x4B, 0x1B, 0x18, 0x17, 0x1D, 0x21,
+	-1, 0xE1, 0xF0, 0x09, 0x13, 0x0C, 0x0D, 0x27, 0x3B, 0x44, 0x4D, 0x0B, 0x17, 0x17, 0x1D, 0x21,
+	-1, 0x36, 0xEC,
+	-1, 0xF0, 0x3C,
+	-1, 0xF0, 0x69,
+	-1, 0x13,
+	-1, 0x11,
+	-1, 0x29,
+//Set Var stuff...
+    -1, 0x36, 0xE8,
+    -3
+};
+
+static int clear_sequence[] = {
+    -1, 0x2A, 0, 0, 479 >> 8, 479 & 0xFF,
+    -1, 0x2B, 0, 0, 319 >> 8, 319 & 0xFF,
+    -1, 0x2C,
+    -3
+};
+
+/*
+static int clear_sequence[] = {
+    -1, 0x2A, 0 >> 8, 0 & 0xFF, 480 >> 8, 480 & 0xFF,
+    -1, 0x2B, 0 >> 8, 0 & 0xFF, 320 >> 8, 320 & 0xFF,
+    -1, 0x2C,
+    -3
+};
+*/
 
 static int default_init_sequence[] = {
 	/* Interface Mode Control */
@@ -78,15 +132,69 @@ static int default_init_sequence[] = {
 	-3
 };
 
-void write(byte *b, int len) {
-    for (int i=0; i<len; i++) {
-        spi_send_byte(b[i]);
-    }
+void write_byte_16(byte b) {
+    //gpio_write(LCD_CS, false);
+    spi_send_byte(0);
+    spi_send_byte(b);
+    //gpio_write(LCD_CS, true);
 }
 
-#define LCD_RESET 25
-#define LCD_DC 24
-#define LCD_CS 8
+void write_word_16(word w) {
+    //gpio_write(LCD_CS, false);
+    spi_send_byte(w >> 8);
+    spi_send_byte(w & 0xFF);
+    //gpio_write(LCD_CS, true);
+}
+
+void write_byte_16_master(byte b) {
+    word n = b;
+    spimaster_write(1, &n, 2);
+}
+
+void write(byte *b, int len) {
+    spi_start_transaction();
+    spi_command();
+    write_byte_16_master(b[0]);
+
+    log_print("SPI_WRITE: %4X ", b[0]);
+
+    if (len > 1) {
+        spi_data();
+    }
+
+    word commandData[64];
+    
+    for (int i=1; i<len; i++) {
+        commandData[i - 1] = b[i];
+        //write_byte_16_master(b[i]);
+        //log_print("%4X ", b[i]);
+    }
+
+    spimaster_write(1, commandData, len - 1);
+
+    log_println(" ");
+    spi_end_transaction();
+}
+
+void write_old(byte *b, int len) {
+    spi_start_transaction();
+    spi_command();
+    write_byte_16(b[0]);
+
+    log_print("SPI_WRITE: %4X ", b[0]);
+
+    if (len > 1) {
+        spi_data();
+    }
+
+    for (int i=1; i<len; i++) {
+        write_byte_16(b[i]);
+        log_print("%4X ", b[i]);
+    }
+
+    log_println(" ");
+    spi_end_transaction();
+}
 
 void lcd_reset() {
     gpio_write(LCD_RESET, true);
@@ -94,21 +202,27 @@ void lcd_reset() {
     gpio_write(LCD_RESET, false);
     timer_delay(500);
     gpio_write(LCD_RESET, true);
+
+    gpio_write(LCD_CS, 0);
 }
 
 void write_reg(byte b) {
-    gpio_write(LCD_DC, false);
-    gpio_write(LCD_CS, false);
-    spi_send_byte(b);
-    gpio_write(LCD_CS, true);
+    spi_command();
+    
+    //gpio_write(LCD_DC, false);
+    //gpio_write(LCD_CS, false);
+    spi_send_byte(b >> 0);
+    spi_send_byte(b & 0xFF);
+    //gpio_write(LCD_CS, true);
 }
 
 void write_data(byte b) {
-    gpio_write(LCD_DC, true);
-    gpio_write(LCD_CS, false);
-    //spi_send_byte(b >> 8);
+    spi_data();
+    //gpio_write(LCD_DC, true);
+    //gpio_write(LCD_CS, false);
+    spi_send_byte(b >> 8);
     spi_send_byte(b & 0xFF);
-    gpio_write(LCD_CS, true);
+    //gpio_write(LCD_CS, true);
     //timer_delay(10);
 }
 
@@ -147,191 +261,41 @@ void LCD_SetColor(word Color , word Xpoint, word Ypoint)
     LCD_Write_AllData(Color , (uint32_t)Xpoint * (uint32_t)Ypoint);
 }
 
-bool lcd_init() {
-    log_println("STARTING UP LCD");
-
-    lcd_reset();
-
-    log_println("\r\n\r\nSTARTUP SEQUENCE:");
-    write_reg(0XF9);
-    write_data(0x00);
-    write_data(0x08);
-
-    write_reg(0xC0);
-    write_data(0x19);//VREG1OUT POSITIVE
-    write_data(0x1a);//VREG2OUT NEGATIVE
-
-    write_reg(0xC1);
-    write_data(0x45);//VGH,VGL    VGH>=14V.
-    write_data(0x00);
-
-    write_reg(0xC2);	//Normal mode, increase can change the display quality, while increasing power consumption
-    write_data(0x33);
-
-    write_reg(0XC5);
-    write_data(0x00);
-    write_data(0x28);//VCM_REG[7:0]. <=0X80.
-
-    write_reg(0xB1);//Sets the frame frequency of full color normal mode
-    write_data(0xA0);//0XB0 =70HZ, <=0XB0.0xA0=62HZ
-    write_data(0x11);
-
-    write_reg(0xB4);
-    write_data(0x02); //2 DOT FRAME MODE,F<=70HZ.
-
-    write_reg(0xB6);//
-    write_data(0x00);
-    write_data(0x42);//0 GS SS SM ISC[3:0];
-    write_data(0x3B);
-
-    write_reg(0xB7);
-    write_data(0x07);
-
-    write_reg(0xE0);
-    write_data(0x1F);
-    write_data(0x25);
-    write_data(0x22);
-    write_data(0x0B);
-    write_data(0x06);
-    write_data(0x0A);
-    write_data(0x4E);
-    write_data(0xC6);
-    write_data(0x39);
-    write_data(0x00);
-    write_data(0x00);
-    write_data(0x00);
-    write_data(0x00);
-    write_data(0x00);
-    write_data(0x00);
-    
-
-    write_reg(0XE1);
-    write_data(0x1F);
-    write_data(0x3F);
-    write_data(0x3F);
-    write_data(0x0F);
-    write_data(0x1F);
-    write_data(0x0F);
-    write_data(0x46);
-    write_data(0x49);
-    write_data(0x31);
-    write_data(0x05);
-    write_data(0x09);
-    write_data(0x03);
-    write_data(0x1C);
-    write_data(0x1A);
-    write_data(0x00);
-
-    write_reg(0XF1);
-    write_data(0x36);
-    write_data(0x04);
-    write_data(0x00);
-    write_data(0x3C);
-    write_data(0x0F);
-    write_data(0x0F);
-    write_data(0xA4);
-    write_data(0x02);
-
-    write_reg(0XF2);
-    write_data(0x18);
-    write_data(0xA3);
-    write_data(0x12);
-    write_data(0x02);
-    write_data(0x32);
-    write_data(0x12);
-    write_data(0xFF);
-    write_data(0x32);
-    write_data(0x00);
-
-    write_reg(0XF4);
-    write_data(0x40);
-    write_data(0x00);
-    write_data(0x08);
-    write_data(0x91);
-    write_data(0x04);
-
-    write_reg(0XF8);
-    write_data(0x21);
-    write_data(0x04);
-
-    write_reg(0X3A);	//Set Interface Pixel Format
-    write_data(0x55);
-
-
-    log_println("\r\n\r\nGAMMA SEQUENCE:");
-//gammastuff
-    write_reg(0xB6);
-    write_data(0X00);
-    write_data(0x62);
-    write_reg(0x36);
-    write_data(0x28);
-
-    log_println("\r\n\r\nTURNING ON:");
-    timer_delay(200);
-
-    write_reg(0x11);
-    timer_delay(120);
-    write_reg(0x29);
-
-    log_println("LCD BACK ON");
-
-    timer_delay(2000);
-    //clear
-    lcd_set_window(0, 0, LCD_WIDTH, LCD_HEIGHT);
-    LCD_SetColor (BLACK , LCD_WIDTH, LCD_HEIGHT);
-    log_println("CLEARED BLACK");
-
-    timer_delay(2000);
-    //clear
-    lcd_set_window(0, 0, LCD_WIDTH, LCD_HEIGHT);
-    LCD_SetColor (RED , LCD_WIDTH, LCD_HEIGHT);
-    log_println("CLEARED RED");
-
-    timer_delay(2000);
-    //clear
-    lcd_set_window(0, 0, LCD_WIDTH, LCD_HEIGHT);
-    LCD_SetColor (BLUE , LCD_WIDTH, LCD_HEIGHT);
-    log_println("CLEARED BLUE");
-
-    timer_delay(2000);
-/*
-    spi_activate_transfer();
-    int max = 1000;
-    int j=0;
-    byte buf[64];
-    log_println("\r\n\r\nSTARTING LCD...");
+void play_sequence(int *p, dword size) {
+    dword max = size * 2;
+    int j = 0;
+    byte buf[max];
 
     for (int i=0; i<max;) {
         //log_println("LCD:> %2X", i);
 
-        if (default_init_sequence[i] == -3) {
+        if (p[i] == -3) {
             break;
         }
 
-        switch(default_init_sequence[i]) {
+        switch(p[i]) {
             case -1:
             {
                 i++;
 
-
                 j = 0;
 
-                while(default_init_sequence[i] >= 0) {
+                while(p[i] != -1 && p[i] != -3) {
                     if (j > 63) {
+                        log_println("BAD VAL: %d, %d, %d", i, j, p[i]);
                         assert(false, "LCD FAIL 1");
                     }
-                    buf[j++] = default_init_sequence[i++];
+                    //log_println("READING DATA ITEM: %d", p[i]);
+                    buf[j++] = p[i++];
                 }
-
-                log_println("WRITING DATA: ");
-                log_dump(buf, j, 8);
 
                 write(buf, j);
             } break;
 
             case -2: {
+                log_println("NEG 2");
                 i++;
-                timer_delay(default_init_sequence[i++]);
+                timer_delay(p[i++]);
             } break;
 
             case -3: {
@@ -340,15 +304,150 @@ bool lcd_init() {
             }
 
             default:
+                log_println("BAD VALUE: %d - %d", i, p[i]);
                 assert(false, "BAD VALUE");
                 break;
         }
     }
+}
+
+
+
+void write_color(word color) {
+
+    spi_data();
+
+    log_println("BEGIN TX");
+
+    word *screenData = allocPage();
+    
+    for (int i=0; i<(320*480); i++) {
+        screenData[i] = color;
+    }
+
+    spimaster_write(1, screenData, 320 * 480);
+
+    log_println("END TX");
+}
+
+void write_color_old(word color) {
+
+    spi_data();
+    
+    //log_println("START TX");
+
+    for (int i=0; i<(320*480); i++) {
+        //dmaData[i] = color;
+        
+    spi_start_transaction();
+    //gpio_write(LCD_CS, false);
+        spi_send_byte(color >> 8);
+        spi_send_byte(color & 0xFF);
+    //gpio_write(LCD_CS, true);
+    spi_end_transaction();
+
+        if (i % 1000 == 0) {
+            //log_println("SENT %d BYTES", i);
+        }
+        
+    }
+
+    //spi_send_dma(dmaData, 320 * 480);
+
+    log_println("END TX");
+}
+
+bool lcd_init() {
+    log_println("STARTING UP LCD 6");
+    timer_delay(3000);
+
+    spimaster_init();
+    gpio_pin_mode(24, PMOut); //RS (DC?)
+    gpio_pin_mode(25, PMOut); //Reset
+
+    log_println("INIT SPI");
+    timer_delay_ms(1000);
+/*
+    log_println("TESTING DMA");
+
+    byte *b1 = allocPage();
+    byte *b2 = allocPage();
+
+    for (int i=0; i<200; i++) {
+        b1[i] = i;
+        log_println("B1 [%d] = %d", i, b1[i]);
+    }
+
+    timer_delay(3000);
+
+    for (int i=0; i<20; i++) {
+        log_println("B2 [%d] = %d - %d", i, b2[i], b1[i]);
+    }
+
+    log_println("WAS BEFORE DMA");
+
+    timer_delay(3000);
+
+    DmaChannel *ch = dma_open_channel(DCNormal);
+    dma_setup_mem_copy(ch, b2, b1, 512, 2, false);
+    dma_start(ch);
+    dma_wait(ch);
+
+    log_println("DONE DMA");
+    timer_delay(2000);
+
+
+    for (int i=0; i<200; i++) {
+        log_println("B2 [%d] = %d - %d", i, b2[i], b1[i]);
+    }
+
+    timer_delay(5000);
+*/
+
+    spi_reset();
+    timer_delay(200);
+
+    //spi_activate_transfer();
+    int max = 1000;
+    int j=0;
+    byte buf[64];
+    log_println("\r\n\r\nSTARTING LCD...");
+
+    play_sequence(init_sequence, sizeof(init_sequence));
+
+    timer_delay(3000);
+
+    spi_reset();
+    timer_delay(200);
+    log_println("\r\n\r\nSTARTING LCD...");
+
+    play_sequence(init_sequence, sizeof(init_sequence));
+
+    timer_delay(3000);
+    log_println("\r\n\r\nCLEARING LCD...");
+
+    play_sequence(clear_sequence, sizeof(clear_sequence));
+    log_println("\r\n\r\nWRITING RED LCD...");
+    write_color(RED);
+    log_println("\r\n\r\nWROTE RED LCD...");
+
+    timer_delay(3000);
+    log_println("\r\n\r\nCLEARING LCD...");
+
+    play_sequence(clear_sequence, sizeof(clear_sequence));
+    write_color(BLUE);
+    
+    timer_delay(3000);
+    log_println("\r\n\r\nCLEARING LCD...");
+
+    play_sequence(clear_sequence, sizeof(clear_sequence));
+    write_color(YELLOW);
+    
 
     log_println("LCD STARTED\r\n\r\n");
 
     timer_delay(5000);
-*/
+
 
 //old init seq:
 /*

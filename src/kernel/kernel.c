@@ -7,6 +7,7 @@
 #include "mm.h"
 #include <mailbox/mailbox.h>
 #include "devices.h"
+#include <sys/timer.h>
 
 #include <peripherals/base.h>
 #include <log.h>

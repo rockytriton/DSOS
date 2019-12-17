@@ -78,14 +78,14 @@ static dword mailbox_read(byte channel) {
     }
 }
 
-static bool mailbox_process(dword tagId, MailboxTag *tag, dword tagSize) {
+bool mailbox_process(dword tagId, MailboxTag *tag, dword tagSize) {
     log_println("mailbox_process...");
     tag->tagId = tagId;
     log_println("TadID: %X", tag->tagId);
     log_println("TadID: %X", tag->tagId);
-    tag->valueLength = 0;
+    //tag->valueLength = 0;
     log_println("SOMETHING");
-    tag->bufferSize = tagSize - sizeof(MailboxTag);
+    //tag->bufferSize = tagSize - sizeof(MailboxTag);
     log_println("TadID: %X", tag->bufferSize);
 
     int bufferSize = tagSize + 8 + 4;
@@ -100,7 +100,9 @@ static bool mailbox_process(dword tagId, MailboxTag *tag, dword tagSize) {
     PropertyBuffer *buff = (PropertyBuffer *)buffer;
     buff->size = bufferSize;
     buff->code = CODE_REQUEST;
-    *(dword *)(buffer[8 + tagSize]) = PROPTAG_END;
+    dword *pdwBuf = (dword *)buffer;
+    pdwBuf[(tagSize + 12) / 4 - 1] = PROPTAG_END;
+    //*(dword *)(buffer[8 + tagSize]) = PROPTAG_END;
 
     mailbox_write(MAIL_TAGS, (dword)(uint64_t)buffer);
 
@@ -124,6 +126,9 @@ static bool mailbox_command(void *commandData) {
 
 dword mailbox_clock_rate(ClockType ct) {
     MbxClockData cd;
+    cd.tagData.tagId = PROPTAG_GET_CLOCK_RATE;
+    cd.tagData.valueLength = 0;
+    cd.tagData.bufferSize = sizeof(MbxClockData) - sizeof(MailboxTag);
     cd.clockId = ct;
 
     log_println("SIZE OF IT: %d", sizeof(cd));
@@ -135,6 +140,9 @@ dword mailbox_clock_rate(ClockType ct) {
 
 bool mailbox_power(DevicePowerType pt, bool on) {
     MbxPowerData pd;
+    pd.tagData.tagId = PROPTAG_SET_POWER_STATE;
+    pd.tagData.valueLength = 0;
+    pd.tagData.bufferSize = sizeof(MbxPowerData) - sizeof(MailboxTag);
     pd.deviceId = pt;
 
     if (on) {

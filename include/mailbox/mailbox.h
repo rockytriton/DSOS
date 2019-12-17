@@ -28,6 +28,11 @@ typedef struct {
     dword rate;
 } MbxClockData PACKED;
 
+typedef struct {
+    MailboxTag tagData;
+    byte transferData[32];
+} MailboxTransfer PACKED;
+
 typedef enum {
     CTEmmc = 1,
     CTUart = 2,
@@ -43,3 +48,5 @@ typedef enum {
 dword mailbox_clock_rate(ClockType ct);
 
 bool mailbox_power(DevicePowerType pt, bool on);
+
+bool mailbox_process(dword tagId, MailboxTag *tag, dword tagSize);

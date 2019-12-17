@@ -1,6 +1,8 @@
 #include "arm/sysregs.h"
 #include "mm.h"
 
+#define OSC_FREQ		19200000
+
 .section ".text.boot"
 
 .globl _start
@@ -33,6 +35,9 @@ proc_hang_loop:
 
 master:
 	bl setupPeripheralBase
+
+	ldr x0, =OSC_FREQ
+	msr CNTFRQ_EL0, x0
 	
 	ldr x0, =SCTLR_VALUE_MMU_DISABLED
 	msr sctlr_el1, x0

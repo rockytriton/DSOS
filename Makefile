@@ -30,13 +30,13 @@ DEP_FILES = $(OBJ_FILES:%.o=%.d)
 -include $(DEP_FILES)
 
 copy:
-	cp kernel8.img /Volumes/boot/
+	cp kernel8.img /Volumes/boot\ 1/
 	sleep 2
-	cp kernel8.img /Volumes/boot/
+	cp kernel8.img /Volumes/boot\ 1/
 
 kernel8.img: $(SRC_DIR)/linker.ld $(OBJ_FILES)
 	$(ARMGNU)-ld -T $(SRC_DIR)/linker.ld -o $(BUILD_DIR)/kernel8.elf  $(OBJ_FILES)
 	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary kernel8.img
-	cp kernel8.img /Volumes/boot/
+	cp kernel8.img /Volumes/boot\ 1/
 	sleep 2
-	cp kernel8.img /Volumes/boot/
+	cp kernel8.img /Volumes/boot\ 1/

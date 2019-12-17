@@ -39,6 +39,8 @@ void timer_sys_init() {
 }
 
 void timer_delay(dword ms) {
+    //timer_delay_ms(ms);
+    
     dword start = systemTicks;
     reg32 goal = ms + start + 1;
     dword lastTick = start;
@@ -50,4 +52,15 @@ void timer_delay(dword ms) {
 
 dword timer_ticks() {
     return systemTicks;
+}
+
+void timer_delay_ms(dword ms) {
+    timer_delay_us(1000 * ms);
+}
+
+void timer_delay_us(dword us) {
+    qword numTicks = us * (CLOCKHZ / 1000000) + 1;
+    qword startTicks = clock_get_ticks();
+
+    while(clock_get_ticks() - startTicks < numTicks);
 }

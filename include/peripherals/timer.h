@@ -1,7 +1,10 @@
 #ifndef	_P_TIMER_H
 #define	_P_TIMER_H
 
+
 #include "peripherals/base.h"
+
+#define CLOCKHZ	1000000
 
 #define TIMER_CS        (PBASE+0x00003000)
 #define TIMER_CLO       (PBASE+0x00003004)
