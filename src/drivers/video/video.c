@@ -78,8 +78,6 @@ typedef struct {
 	dword xres_virtual, yres_virtual;
 	MailboxTag tag3;
 	dword bpp;
-	MailboxTag tag4;
-	dword xoffset, yoffset;
 	MailboxTag tag5;
 	dword base, screen_size;
 	MailboxTag tag6;
@@ -95,36 +93,30 @@ static FrameBufferRequest fbinfo __attribute__((aligned(16))) = {
             8, 0, },
         .xres_virtual = 1824,
         .yres_virtual = 984,
-    .tag3 = { PROPTAG_SET_DEPTH, 4, 0 },
+    .tag3 = { PROPTAG_SET_DEPTH, 4, 4 },
         .bpp = 32,
-    .tag4 = { PROPTAG_SET_VIRTUAL_OFFSET, 8, 0 },
-        .xoffset = 0,
-        .yoffset = 0,
-    .tag5 = { PROPTAG_ALLOCATE_BUFFER, 16, 0 },
+    .tag5 = { PROPTAG_ALLOCATE_BUFFER, 8, 4 },
         .base = 0,
         .screen_size = 0,
-    .tag6 = { PROPTAG_GET_PITCH, 4, 0 },
+    .tag6 = { PROPTAG_GET_PITCH, 4, 4 },
         .pitch = 0,
 };
 
 static FrameBufferRequest fbinfoDEFAULT __attribute__((aligned(16))) = {
     .tag1 = { PROPTAG_SET_PHYS_WIDTH_HEIGHT,
-            8, 0, },
+            8, 8 },
         .xres = 1824,
         .yres = 984,
     .tag2 = { PROPTAG_SET_VIRT_WIDTH_HEIGHT,
-            8, 0, },
+            8, 8 },
         .xres_virtual = 1824,
         .yres_virtual = 984,
-    .tag3 = { PROPTAG_SET_DEPTH, 4, 0 },
+    .tag3 = { PROPTAG_SET_DEPTH, 4, 4 },
         .bpp = 32,
-    .tag4 = { PROPTAG_SET_VIRTUAL_OFFSET, 8, 0 },
-        .xoffset = 0,
-        .yoffset = 0,
-    .tag5 = { PROPTAG_ALLOCATE_BUFFER, 16, 0 },
-        .base = 0,
+    .tag5 = { PROPTAG_ALLOCATE_BUFFER, 8, 4 },
+        .base = 16,
         .screen_size = 0,
-    .tag6 = { PROPTAG_GET_PITCH, 4, 0 },
+    .tag6 = { PROPTAG_GET_PITCH, 4, 4 },
         .pitch = 0,
 };
 
@@ -147,39 +139,145 @@ void do_delay() {
 
 }
 
+dword video_get_color(VColor color) {
+    if (screenInfo.bpp == 16) {
+        switch(color) {
+            case Black: return 0x0000;
+            case Blue: return 0x0010;
+            case Red: return 0x8000;
+            case Magenta: return 0x8010;
+            case Green: return 0x0400;
+            case Cyan: return 0x0410;
+            case Yellow: return 0x8400;
+            case White: return 0x8410;
+            case BrightBlue: return 0x001F;
+            case BrightRed: return 0xF800;
+            case BrightMagenta: return 0xF81F;
+            case BrightGreen: return 0x07E0;
+            case BrightCyan: return 0x07FF;
+            case BrightYellow: return 0xFFE0;
+            case BrightWhite: return 0xFFFF;
+        }
+    } else {
+        switch(color) {
+            case Black: return 0x00000000;
+            case Blue: return 0x0000AA00;
+            case Red: return 0xAA000000;
+            case Magenta: return 0xCC000000;
+            case Green: return 0x00AA0000;
+            case Cyan: return 0x00AA0000;
+            case Yellow: return 0xCCCC0000;
+            case White: return 0xFFFFFFFF;
+            case BrightBlue: return 0x0000FF00;
+            case BrightRed: return 0xFF000000;
+            case BrightMagenta: return 0xFF0F0F00;
+            case BrightGreen: return 0x00FF0000;
+            case BrightCyan: return 0x00FFF000;
+            case BrightYellow: return 0xFFFF0000;
+            case BrightWhite: return 0xFFFFFFFF;
+        }
+    }
+}
+
 void video_init() {
     ch = dma_open_channel(DCNormal);
     preBuffer = (allocPage() + 0x00F00000);
+/*
+    video_set_text_color(Yellow);
 
-    video_set_resolution(1824, 984, 32);
+    video_set_resolution(480, 320, 16);
+    video_clear_screen(Black);
+    video_clear_screen(White);
+    video_clear_screen(Red);
+    video_clear_screen(Green);
+    video_clear_screen(Blue);
+    video_clear_screen(Black);
+    video_draw_string("VIDEO TEST 1", 100, 100);
+    do_delay();
 
-    video_clear_screen(0xFFFFFF00);
-    video_clear_screen(0x00000000);
-    video_clear_screen(0x0000FF00);
-    video_clear_screen(0x0000FF00);
-    video_clear_screen(0x00FFFF00);
-    video_clear_screen(0xFFFFFF00);
-    video_clear_screen(0xFF000000);
-    video_clear_screen(0xFFFF0000);
-    video_clear_screen(0x0000FF00);
-    video_clear_screen(0x00FF0000);
+    video_set_resolution(640, 480, 16);
+    video_clear_screen(Black);
+    video_clear_screen(White);
+    video_clear_screen(Red);
+    video_clear_screen(Green);
+    video_clear_screen(Blue);
+    video_clear_screen(Black);
+    video_draw_string("VIDEO TEST 2", 100, 100);
+    do_delay();
 
+    video_set_resolution(1024, 768, 16);
+    video_clear_screen(Black);
+    video_clear_screen(White);
+    video_clear_screen(Red);
+    video_clear_screen(Green);
+    video_clear_screen(Blue);
+    video_clear_screen(Black);
+    video_draw_string("VIDEO TEST 3", 100, 100);
+    do_delay();
+
+    video_set_resolution(1600, 900, 16);
+    video_clear_screen(Black);
+    video_clear_screen(White);
+    video_clear_screen(Red);
+    video_clear_screen(Green);
+    video_clear_screen(Blue);
+    video_clear_screen(Black);
+    video_draw_string("VIDEO TEST 4", 100, 100);
+    do_delay();
+
+    video_set_resolution(1824, 984, 16);
+    video_clear_screen(Black);
+    video_clear_screen(White);
+    video_clear_screen(Red);
+    video_clear_screen(Green);
+    video_clear_screen(Blue);
+    video_clear_screen(Black);
+    video_draw_string("VIDEO TEST 5", 100, 100);
+    do_delay();
+
+    video_set_resolution(3840, 2160, 16);
+    video_clear_screen(Black);
+    video_clear_screen(White);
+    video_clear_screen(Red);
+    video_clear_screen(Green);
+    video_clear_screen(Blue);
+    video_clear_screen(Black);
+    video_draw_string("VIDEO TEST 6", 100, 100);
+    do_delay();
+
+    video_clear_screen(Black);
+    video_clear_screen(White);
+    video_clear_screen(Red);
+    video_clear_screen(Green);
+    video_clear_screen(Blue);
+    video_clear_screen(BrightBlue);
+    video_clear_screen(BrightRed);
+    video_clear_screen(Cyan);
+    video_clear_screen(Magenta);
+    video_clear_screen(Black);
 
     video_clear_screen(0);
-    video_set_text_color(0x00FFFFFF);
     video_draw_string("READY TO GO", 100, 100);
     do_delay();
     do_delay();
     do_delay();
+*/
 
 }
 
-void video_set_text_color(dword color) {
-    screenInfo.textColor = color;
+void video_set_text_color(VColor vcolor) {
+    screenInfo.textColor = video_get_color(vcolor);
 }
 
-void video_clear_screen(dword color) {
+void video_scroll(dword y) {
+    byte *p = (byte *)fbinfo.base;
+    dma_setup_mem_copy(ch, p, p + (y * SCREEN_WIDTH * screenInfo.bpp), fbinfo.screen_size - (y * SCREEN_WIDTH * screenInfo.bpp), 2, false);
+    dma_start(ch);
+    dma_wait(ch);
+}
 
+void video_clear_screen(VColor vcolor) {
+    dword color = video_get_color(vcolor);
     int pixel_offset = 0;
     int pitch = screenInfo.pitch; //4 * SCREEN_HEIGHT; //5120;
     screenInfo.backColor = color;
@@ -194,10 +292,15 @@ void video_clear_screen(dword color) {
         for(int x = 0; x < SCREEN_WIDTH; x++ ) {
             pixel_offset = ( x * ( 32 >> 3 ) ) + ( y * pitch );
 
-            preBuffer[ pixel_offset++ ] = r;
-            preBuffer[ pixel_offset++ ] = g;
-            preBuffer[ pixel_offset++ ] = b;
-            preBuffer[ pixel_offset++ ] = a;
+            if (screenInfo.bpp == 32) {
+                preBuffer[ pixel_offset++ ] = r;
+                preBuffer[ pixel_offset++ ] = g;
+                preBuffer[ pixel_offset++ ] = b;
+                preBuffer[ pixel_offset++ ] = a;
+            } else {
+                preBuffer[ pixel_offset++ ] = (color >> 8) & 0xFF;
+                preBuffer[ pixel_offset++ ] = color & 0xFF;
+            }
         }
     }
 
@@ -230,11 +333,16 @@ void draw_pixel(int x, int y, dword color) {
     int g = (color & 0x00FF0000) >> 16;
     int b = (color & 0x0000FF00) >> 8;
     int a = 0xFF;
-
-    fb[ pixel_offset++ ] = r;
-    fb[ pixel_offset++ ] = g;
-    fb[ pixel_offset++ ] = b;
-    fb[ pixel_offset++ ] = a;
+    
+    if (screenInfo.bpp == 32) {
+        fb[ pixel_offset++ ] = r;
+        fb[ pixel_offset++ ] = g;
+        fb[ pixel_offset++ ] = b;
+        fb[ pixel_offset++ ] = a;
+    } else {
+        fb[ pixel_offset++ ] = (color >> 8) & 0xFF;
+        fb[ pixel_offset++ ] = color & 0xFF;
+    }
 }
 
 void video_update_info() {
@@ -304,7 +412,7 @@ void video_set_resolution(dword x, dword y, dword bpp) {
     fbinfo.xres = x;
     fbinfo.yres = y;
     fbinfo.xres_virtual = x;
-    fbinfo.xres_virtual = y;
+    fbinfo.yres_virtual = y;
     
     log_println("CALLING MAILBOX");
 
@@ -322,6 +430,15 @@ void video_set_resolution(dword x, dword y, dword bpp) {
     video_update_info();
 
     return true;
+}
+
+void video_draw_char(char c, dword posX, dword posY) {
+    for (int y=0; y<font_get_height(); y++) {
+        for (int x=0; x<font_get_width(); x++) {
+            bool yes = font_get_pixel(c, x, y);
+            draw_pixel(posX + x, posY + y, yes ? screenInfo.textColor : screenInfo.backColor);
+        }
+    }
 }
 
 void video_draw_string(char *sz, dword inX, dword inY) {

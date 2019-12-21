@@ -34,7 +34,7 @@ static void muart_send(char c) {
     REGS_MU->io = c;
 }
 
-static char muart_read_char() {
+char muart_read_char() {
     while(!(REGS_MU->lsr & 1));
 
     return REGS_MU->io & 0xFF;
