@@ -2,7 +2,7 @@
 #include <dev/dev.h>
 #include <peripherals/base.h>
 #include <log.h>
-
+#include "mm.h"
 
 const int VALUE_LENGTH_RESPONSE = (1 << 31);
 
@@ -55,7 +55,7 @@ typedef struct {
     byte tags[0];
 } PropertyBuffer;
 
-static int propertyData[8192] __attribute__((aligned(16)));
+static dword propertyData[8192] __attribute__((aligned(16)));
 
 static int mailbox_write(byte channel, dword data) {
     while(MBX()->status & MAIL_FULL);
@@ -68,6 +68,8 @@ static dword mailbox_read(byte channel) {
         while(MBX()->status & MAIL_EMPTY);
 
         dword data = MBX()->read;
+        log_println("MBX READ: %X", data);
+
         byte readChannel = (byte)(data & 0xF);
 
         assert(readChannel == channel, "ERR");
@@ -78,15 +80,37 @@ static dword mailbox_read(byte channel) {
     }
 }
 
+void mailbox_old_school_req(dword *p, dword size) {
+    memcpy(propertyData, p, size);
+
+    log_println("Writing %X", propertyData);
+
+    asm volatile ("dsb sy" ::: "memory");
+
+    mailbox_write(MAIL_TAGS, (dword)(uint64_t)propertyData);
+
+    log_println("waiting");
+
+    int result = mailbox_read(MAIL_TAGS);
+
+    asm volatile ("dmb sy" ::: "memory");
+
+    log_println("Read: %X", result);
+
+    memcpy(p, propertyData, size);
+}
+
 bool mailbox_process(dword tagId, MailboxTag *tag, dword tagSize) {
-    log_println("mailbox_process...");
-    tag->tagId = tagId;
+    log_println("mailbox_process: %X", tag);
+    /*
+    //tag->tagId = tagId;
     log_println("TadID: %X", tag->tagId);
     log_println("TadID: %X", tag->tagId);
     //tag->valueLength = 0;
     log_println("SOMETHING");
     //tag->bufferSize = tagSize - sizeof(MailboxTag);
     log_println("TadID: %X", tag->bufferSize);
+*/
 
     int bufferSize = tagSize + 8 + 4;
 
@@ -104,11 +128,17 @@ bool mailbox_process(dword tagId, MailboxTag *tag, dword tagSize) {
     pdwBuf[(tagSize + 12) / 4 - 1] = PROPTAG_END;
     //*(dword *)(buffer[8 + tagSize]) = PROPTAG_END;
 
+    asm volatile ("dsb sy" ::: "memory");
+
     mailbox_write(MAIL_TAGS, (dword)(uint64_t)buffer);
 
     log_println("waiting");
 
     int result = mailbox_read(MAIL_TAGS);
+
+    asm volatile ("dmb sy" ::: "memory");
+
+    log_println("Read: %d", tagSize);
 
     for (int i=0; i<tagSize; i++) {
         source[i] = buffer[i + 8];
@@ -125,21 +155,35 @@ static bool mailbox_command(void *commandData) {
 }
 
 dword mailbox_clock_rate(ClockType ct) {
-    MbxClockData cd;
+    MbxClockData cd __attribute__((aligned(16)));
     cd.tagData.tagId = PROPTAG_GET_CLOCK_RATE;
     cd.tagData.valueLength = 0;
     cd.tagData.bufferSize = sizeof(MbxClockData) - sizeof(MailboxTag);
     cd.clockId = ct;
 
-    log_println("SIZE OF IT: %d", sizeof(cd));
+    log_println("SIZE OF IT: %d - %X", sizeof(cd), &cd);
 
-    mailbox_process(PROPTAG_GET_CLOCK_RATE, (MailboxTag *)&cd.tagData, sizeof(cd));
+    if (!mailbox_process(PROPTAG_GET_CLOCK_RATE, (MailboxTag *)&cd, sizeof(cd))) {
+        log_println("FAILED TO PROC MBX");
+    }
 
     return cd.rate;
 }
 
+void mailbox_power_check(dword type) {
+    MbxPowerData pd __attribute__((aligned(16)));
+    pd.tagData.tagId = 0x00020001;
+    pd.tagData.valueLength = 8;
+    pd.tagData.bufferSize = sizeof(MbxPowerData) - sizeof(MailboxTag);
+    pd.deviceId = type;
+
+    mailbox_process(0x00020001, (MailboxTag *)&pd, sizeof(pd));
+
+    log_println("GOT POWER STATE: %d - %d", pd.state, pd.tagData.valueLength);
+}
+
 bool mailbox_power(DevicePowerType pt, bool on) {
-    MbxPowerData pd;
+    MbxPowerData pd __attribute__((aligned(16)));
     pd.tagData.tagId = PROPTAG_SET_POWER_STATE;
     pd.tagData.valueLength = 0;
     pd.tagData.bufferSize = sizeof(MbxPowerData) - sizeof(MailboxTag);

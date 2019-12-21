@@ -21,7 +21,7 @@ $(BUILD_DIR)/%_s.o: $(SRC_DIR)/%.S
 	mkdir -p $(BUILD_DIR)/kernel
 	$(ARMGNU)-gcc $(ASMOPS) -MMD -c $< -o $@
 
-C_FILES = $(wildcard $(SRC_DIR)/*/*.c) $(wildcard $(SRC_DIR)/drivers/*/*.c)  $(wildcard $(SRC_DIR)/kernel/*/*.c)
+C_FILES = $(wildcard $(SRC_DIR)/*/*.c) $(wildcard $(SRC_DIR)/drivers/*/*.c) $(wildcard $(SRC_DIR)/kernel/*/*.c) $(wildcard $(SRC_DIR)/utils/*/*.c)
 ASM_FILES = $(wildcard $(SRC_DIR)/arch/arm64/*.S)
 OBJ_FILES = $(C_FILES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%_c.o)
 OBJ_FILES += $(ASM_FILES:$(SRC_DIR)/%.S=$(BUILD_DIR)/%_s.o)
@@ -30,13 +30,15 @@ DEP_FILES = $(OBJ_FILES:%.o=%.d)
 -include $(DEP_FILES)
 
 copy:
-	cp kernel8.img /Volumes/boot\ 1/
+	cp kernel8.img /Volumes/boot/
 	sleep 2
-	cp kernel8.img /Volumes/boot\ 1/
+	cp kernel8.img /Volumes/boot/
+	diskutil unmount /Volumes/boot
 
 kernel8.img: $(SRC_DIR)/linker.ld $(OBJ_FILES)
 	$(ARMGNU)-ld -T $(SRC_DIR)/linker.ld -o $(BUILD_DIR)/kernel8.elf  $(OBJ_FILES)
 	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary kernel8.img
-	cp kernel8.img /Volumes/boot\ 1/
+	cp kernel8.img /Volumes/boot/
 	sleep 2
-	cp kernel8.img /Volumes/boot\ 1/
+	cp kernel8.img /Volumes/boot/
+	diskutil unmount /Volumes/boot

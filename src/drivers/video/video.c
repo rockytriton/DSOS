@@ -4,6 +4,7 @@
 #include <sys/timer.h>
 #include "mm.h"
 #include "../dma/dmachannel.h"
+#include "../../log/printf.h"
 
 #define PROPTAG_END			0x00000000
 
@@ -30,6 +31,7 @@
 #define PROPTAG_ALLOCATE_BUFFER		0x00040001
 #define PROPTAG_GET_DISPLAY_DIMENSIONS	0x00040003
 #define PROPTAG_GET_PITCH		0x00040008
+#define PROPTAG_GET_DEPTH   0x00044005
 #define PROPTAG_GET_TOUCHBUF		0x0004000F
 #define PROPTAG_GET_GPIO_VIRTBUF	0x00040010
 #define PROPTAG_SET_PHYS_WIDTH_HEIGHT	0x00048003
@@ -44,8 +46,30 @@
 #define PROPTAG_GET_COMMAND_LINE	0x00050001
 #define PROPTAG_GET_DMA_CHANNELS	0x00060001
 
-#define SCREEN_WIDTH 1824
-#define SCREEN_HEIGHT 984
+typedef struct {
+    dword brushColor;
+    dword backColor;
+    dword textColor;
+    dword width;
+    dword height;
+    dword bpp;
+    dword pitch;
+    dword size;
+    dword *base;
+} ScreenInfo;
+
+static ScreenInfo screenInfo = {
+    .brushColor = 0x00000000,
+    .backColor = 0x00000000,
+    .textColor = 0xFFFFFFFF,
+    .width = 1824,
+    .height = 984,
+    .bpp = 32,
+    .pitch = 984 * 4
+};
+
+#define SCREEN_WIDTH screenInfo.width
+#define SCREEN_HEIGHT screenInfo.height
 
 typedef struct {
 	MailboxTag tag1;
@@ -62,26 +86,49 @@ typedef struct {
 	dword pitch;
 } FrameBufferRequest;
 
-FrameBufferRequest fbinfo = {
+static FrameBufferRequest fbinfo __attribute__((aligned(16))) = {
     .tag1 = { PROPTAG_SET_PHYS_WIDTH_HEIGHT,
             8, 0, },
-        .xres = SCREEN_WIDTH,
-        .yres = SCREEN_HEIGHT,
+        .xres = 1824,
+        .yres = 984,
     .tag2 = { PROPTAG_SET_VIRT_WIDTH_HEIGHT,
             8, 0, },
-        .xres_virtual = SCREEN_WIDTH,
-        .yres_virtual = SCREEN_HEIGHT,
+        .xres_virtual = 1824,
+        .yres_virtual = 984,
     .tag3 = { PROPTAG_SET_DEPTH, 4, 0 },
         .bpp = 32,
     .tag4 = { PROPTAG_SET_VIRTUAL_OFFSET, 8, 0 },
         .xoffset = 0,
         .yoffset = 0,
-    .tag5 = { PROPTAG_ALLOCATE_BUFFER, 4096, 0 },
+    .tag5 = { PROPTAG_ALLOCATE_BUFFER, 16, 0 },
         .base = 0,
         .screen_size = 0,
     .tag6 = { PROPTAG_GET_PITCH, 4, 0 },
         .pitch = 0,
 };
+
+static FrameBufferRequest fbinfoDEFAULT __attribute__((aligned(16))) = {
+    .tag1 = { PROPTAG_SET_PHYS_WIDTH_HEIGHT,
+            8, 0, },
+        .xres = 1824,
+        .yres = 984,
+    .tag2 = { PROPTAG_SET_VIRT_WIDTH_HEIGHT,
+            8, 0, },
+        .xres_virtual = 1824,
+        .yres_virtual = 984,
+    .tag3 = { PROPTAG_SET_DEPTH, 4, 0 },
+        .bpp = 32,
+    .tag4 = { PROPTAG_SET_VIRTUAL_OFFSET, 8, 0 },
+        .xoffset = 0,
+        .yoffset = 0,
+    .tag5 = { PROPTAG_ALLOCATE_BUFFER, 16, 0 },
+        .base = 0,
+        .screen_size = 0,
+    .tag6 = { PROPTAG_GET_PITCH, 4, 0 },
+        .pitch = 0,
+};
+
+//static FrameBufferRequest fbinfo;
 
 byte *screenRed;
 byte *sreenBlack;
@@ -89,11 +136,53 @@ byte *screenBlue;
 byte *screenWhite;
 byte *screenGreen;
 DmaChannel *ch;
+byte *preBuffer;
+
+void do_delay() {
+    volatile int n = 0;
+    volatile int i = 0;
+    for (; n < 3000000; n++) {
+        i--;
+    }
+
+}
+
+void video_init() {
+    ch = dma_open_channel(DCNormal);
+    preBuffer = (allocPage() + 0x00F00000);
+
+    video_set_resolution(1824, 984, 32);
+
+    video_clear_screen(0xFFFFFF00);
+    video_clear_screen(0x00000000);
+    video_clear_screen(0x0000FF00);
+    video_clear_screen(0x0000FF00);
+    video_clear_screen(0x00FFFF00);
+    video_clear_screen(0xFFFFFF00);
+    video_clear_screen(0xFF000000);
+    video_clear_screen(0xFFFF0000);
+    video_clear_screen(0x0000FF00);
+    video_clear_screen(0x00FF0000);
+
+
+    video_clear_screen(0);
+    video_set_text_color(0x00FFFFFF);
+    video_draw_string("READY TO GO", 100, 100);
+    do_delay();
+    do_delay();
+    do_delay();
+
+}
+
+void video_set_text_color(dword color) {
+    screenInfo.textColor = color;
+}
 
 void video_clear_screen(dword color) {
-    byte *preBuffer = allocPage();
+
     int pixel_offset = 0;
-    int pitch = 4 * SCREEN_WIDTH; //5120;
+    int pitch = screenInfo.pitch; //4 * SCREEN_HEIGHT; //5120;
+    screenInfo.backColor = color;
 
     int r = (color & 0xFF000000) >> 24;
     int g = (color & 0x00FF0000) >> 16;
@@ -113,28 +202,27 @@ void video_clear_screen(dword color) {
     }
 
     byte *p = (byte *)fbinfo.base;
-    qword ct2 = clock_get_ticks();
-    int total = (SCREEN_HEIGHT * SCREEN_WIDTH) * 4;
+    int total = fbinfo.screen_size;
     dword start = 0;
 
     while(total > 0) {
         int numBytes = total;
 
-        if (numBytes > 0xFFFF) {
-            numBytes = 0xFFFF;
+        if (numBytes > 0xFFFFFF) {
+            numBytes = 0xFFFFFF;
         }
 
         dma_setup_mem_copy(ch, p + start, preBuffer + start, numBytes, 2, false);
         dma_start(ch);
         dma_wait(ch);
 
-        start += 0xFFFF;
-        total -= 0xFFFF;
+        start += 0xFFFFFF;
+        total -= 0xFFFFFF;
     }
 }
 
 void draw_pixel(int x, int y, dword color) {
-    int pitch = 4 * SCREEN_WIDTH; //5120;
+    int pitch = screenInfo.pitch; //4 * SCREEN_HEIGHT; //5120;
     int pixel_offset = ( x * ( 32 >> 3 ) ) + ( y * pitch );
     volatile unsigned char* fb = (unsigned char*)((fbinfo.base | 0x40000000) & ~0xc0000000);
 
@@ -149,168 +237,103 @@ void draw_pixel(int x, int y, dword color) {
     fb[ pixel_offset++ ] = a;
 }
 
-void video_init() {
-    MailboxTransfer mt;
+void video_update_info() {
 
+    MailboxMessage mbx;
+    MailboxTransfer mt __attribute__((aligned(16)));
     mt.tagData.tagId = PROPTAG_GET_DISPLAY_DIMENSIONS;
     mt.tagData.bufferSize = 8;
-    mt.tagData.valueLength = 8;
-    dword *pData = (dword *)mt.transferData;
-    pData[0] = 0;
-    pData[1] = 0;
-    pData[2] = 0;
+    mt.tagData.valueLength = 0;
+    ((dword *)mt.transferData)[0] = 0;
+    ((dword *)mt.transferData)[1] = 0;
 
-    log_println("DONG REQUEST");
 
-    if (!mailbox_process(mt.tagData.tagId, (MailboxTag *)&mt, sizeof(mt.tagData) + 8)) {
-        log_println("FAILED TO GET VIDEO");
+    if (!mailbox_process(0, (MailboxTag *)&mt, 12 + 8)) {
+        log_println("FAILED video_update_info 1");
         return;
     }
 
-    log_println("VIDEO SIZE: %d, %d, %d, %d", pData[0], pData[1], pData[2], pData[3]);
+    screenInfo.width = ((dword *)mt.transferData)[0];
+    screenInfo.height = ((dword *)mt.transferData)[1];
 
-    if (!mailbox_process(mt.tagData.tagId, (MailboxTag *)&fbinfo, sizeof(FrameBufferRequest))) {
-        log_println("FAILED TO SET VIDEO");
+    mt.tagData.tagId = PROPTAG_GET_PITCH;
+    mt.tagData.bufferSize = 4;
+    mt.tagData.valueLength = 0;
+    ((dword *)mt.transferData)[0] = 0;
+    ((dword *)mt.transferData)[1] = 0;
+
+    if (!mailbox_process(0, (MailboxTag *)&mt, 12 + 4)) {
+        log_println("FAILED video_update_info 2");
         return;
     }
 
-    log_println("PITCH: %d", fbinfo.pitch);
-    log_println("BASE: %X - %X - %X", fbinfo.base, fbinfo.base | 0x40000000, (fbinfo.base | 0x40000000) & ~0xc0000000);
-    log_println("SCREENSIZE: %d", fbinfo.screen_size);
+    screenInfo.pitch = ((dword *)mt.transferData)[0];
+
+    mt.tagData.tagId = PROPTAG_GET_DEPTH;
+    mt.tagData.bufferSize = 4;
+    mt.tagData.valueLength = 0;
+    ((dword *)mt.transferData)[0] = 0;
+    ((dword *)mt.transferData)[1] = 0;
+
+    if (!mailbox_process(0, (MailboxTag *)&mt, 12 + 4)) {
+        log_println("FAILED video_update_info 3");
+        return;
+    }
+
+    screenInfo.bpp = ((dword *)mt.transferData)[0];
+
     log_println(" ");
-    log_println("VIDEO INITIALIZED: %d, %d", fbinfo.yres, fbinfo.xres);
-    timer_delay(5000);
+    log_println("VIDEO_UPDATE_INFO: W: %d, H: %d, P: %d, D: %d, S: %d (%d) (%d) ", screenInfo.width, screenInfo.height, screenInfo.pitch, screenInfo.bpp, 
+        screenInfo.size, screenInfo.width * screenInfo.height * 4, (screenInfo.pitch) * screenInfo.height);
+    log_println(" ");
+}
 
-    int pixel_offset = 0;
-    int pitch = 4 * SCREEN_WIDTH; //5120;
+void video_set_brush(dword color) {
+    screenInfo.brushColor = color;
+}
 
-    int rr = 150;
-    int gg = 50;
-    int bb = 50;
-    int aa = 255;
+void video_draw_line(VPoint from, VPoint to) {
 
-    volatile unsigned char* fb = (unsigned char*)((fbinfo.base | 0x40000000) & ~0xc0000000);
-    //fb = (unsigned char *)((int)fb & 0x3FFFFFFF);
+}
 
-    int frames = 0;
+void video_set_resolution(dword x, dword y, dword bpp) {
+    log_println("VID SET: %d, %d, %d", x, y, bpp);
 
-    byte *preBuffer = allocPage();
+    memcpy(&fbinfo, &fbinfoDEFAULT, sizeof(fbinfo));
 
-    log_println("DRAW 1");
-    qword ct1 = clock_get_ticks();
+    fbinfo.xres = x;
+    fbinfo.yres = y;
+    fbinfo.xres_virtual = x;
+    fbinfo.xres_virtual = y;
+    
+    log_println("CALLING MAILBOX");
 
-    for(int y = 0; y < SCREEN_HEIGHT; y++ )
-    {
-        //rr += ( 1.0 / 1024 );
-        //current_colour.b = 0;
-
-        for(int x = 0; x < SCREEN_WIDTH; x++ ) {
-            pixel_offset = ( x * ( 32 >> 3 ) ) + ( y * pitch );
-
-            int r = rr;
-            int g = gg;
-            int b = bb;
-            int a = aa;
-
-            preBuffer[ pixel_offset++ ] = r;
-            preBuffer[ pixel_offset++ ] = g;
-            preBuffer[ pixel_offset++ ] = b;
-            preBuffer[ pixel_offset++ ] = a;
-        }
-    }
-    int total = (SCREEN_WIDTH * SCREEN_HEIGHT) * 4;
-    dword start = 0;
-    byte *p = (byte *)fbinfo.base;
-    qword ct2 = clock_get_ticks();
-
-    //log_println("DOING DMA: %d", total);
-
-    ch = dma_open_channel(DCNormal);
-
-    while(total > 0) {
-        int numBytes = total;
-
-        if (numBytes > 0xFFFF) {
-            numBytes = 0xFFFF;
-        }
-
-        dma_setup_mem_copy(ch, p + start, preBuffer + start, numBytes, 2, false);
-        dma_start(ch);
-        dma_wait(ch);
-
-        start += 0xFFFF;
-        total -= 0xFFFF;
+    if (!mailbox_process(0, (MailboxTag *)&fbinfo, sizeof(FrameBufferRequest))) {
+        log_println("FAILED TO SET VIDEO");
+        return false;
     }
 
-    qword ct3 = clock_get_ticks();
-    log_println("DONE 1: %d, %d, %d", (ct2 - ct1), (ct3 - ct2), (ct3 - ct1));
+    log_println("OK SET IT: BASE: %8X", fbinfo.base);
 
-    video_clear_screen(0xFFFFFF00);
-    video_clear_screen(0x00000000);
-    video_clear_screen(0x0000FF00);
-    video_clear_screen(0x0000FF00);
-    video_clear_screen(0x00FFFF00);
-    video_clear_screen(0xFFFFFF00);
-    video_clear_screen(0xFF000000);
-    video_clear_screen(0xFFFF0000);
-    video_clear_screen(0x0000FF00);
-    video_clear_screen(0x00FF0000);
+    log_println("BASE: %8X", fbinfo.base);
 
-    rr = 50;
-    gg = 100;
-    bb = 150;
+    screenInfo.size = fbinfo.screen_size;
 
-    ct1 = clock_get_ticks();
-    for(int y = 0; y < SCREEN_HEIGHT; y++ )
-    {
-        //rr += ( 1.0 / 1024 );
-        //current_colour.b = 0;
+    video_update_info();
 
-        for(int x = 0; x < SCREEN_WIDTH; x++ ) {
-            pixel_offset = ( x * ( 32 >> 3 ) ) + ( y * pitch );
+    return true;
+}
 
-            int r = rr;
-            int g = gg;
-            int b = bb;
-            int a = aa;
-
-            fb[ pixel_offset++ ] = r;
-            fb[ pixel_offset++ ] = g;
-            fb[ pixel_offset++ ] = b;
-            fb[ pixel_offset++ ] = a;
-        }
-    }
-    ct2 = clock_get_ticks();
-    log_println("DONE 2: %d,", (ct2 - ct1));
-
-    video_clear_screen(0x00000000);
-
-    timer_delay(5000);
-
-    char *sz = "This is a test, with a long string of character, and some special... #&$_!#$)(* END.";
-
-    int posX = 10;
-    int posY = 10;
-
-    int yess = 0;
-    int nos = 0;
-
+void video_draw_string(char *sz, dword inX, dword inY) {
+    int posX = inX;
+    int posY = inY;
     for (int i=0; sz[i] != 0; i++, posX += (font_get_width() + 2)) {
         for (int y=0; y<font_get_height(); y++) {
             for (int x=0; x<font_get_width(); x++) {
                 bool yes = font_get_pixel(sz[i], x, y);
-                draw_pixel(posX + x, posY + y, yes ? 0xFFFFFFFF : 0x00000000);
-
-                if (yes) {
-                    yess++;
-                } else {
-                    nos++;
-                }
+                draw_pixel(posX + x, posY + y, yes ? screenInfo.textColor : screenInfo.backColor);
             }
         }
     }
-
-    log_println("OK DONE: %d, %d", yess, nos);
-    timer_delay(5000);
 }
 

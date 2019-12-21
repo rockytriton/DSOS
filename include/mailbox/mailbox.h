@@ -30,8 +30,14 @@ typedef struct {
 
 typedef struct {
     MailboxTag tagData;
-    byte transferData[32];
+    byte transferData[16];
 } MailboxTransfer PACKED;
+
+typedef struct {
+    dword size;
+    dword request;
+    dword transferData[64];
+} MailboxMessage PACKED;
 
 typedef enum {
     CTEmmc = 1,
@@ -42,7 +48,8 @@ typedef enum {
 
 typedef enum {
     DPTSDCard = 0,
-    DPTUsb = 3
+    DPTUsb = 3,
+    DPTSpi = 7
 } DevicePowerType;
 
 dword mailbox_clock_rate(ClockType ct);
@@ -50,3 +57,5 @@ dword mailbox_clock_rate(ClockType ct);
 bool mailbox_power(DevicePowerType pt, bool on);
 
 bool mailbox_process(dword tagId, MailboxTag *tag, dword tagSize);
+
+void mailbox_power_check(dword type) ;

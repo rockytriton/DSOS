@@ -1,4 +1,5 @@
 #include "mm.h"
+#include "log.h"
 
 void dmb();
 
@@ -13,6 +14,7 @@ unsigned long allocPage()
 		if (mem_map[i] == 0){
 			mem_map[i] = 1;
             numPages++;
+			log_println("CALLING allocPage: %X", LOW_MEMORY + i*PAGE_SIZE);
 			return LOW_MEMORY + i*PAGE_SIZE;
 		}
 	}

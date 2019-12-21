@@ -86,6 +86,15 @@ static int16_t allocate_channel(dword channel) {
     return DCNone;
 }
 
+void small_delay() {
+    volatile int n = 0;
+    volatile int i = 0;
+    for (; n < 300000; n++) {
+        i--;
+    }
+
+}
+
 DmaChannel *dma_open_channel(dword channel) {
 
     DmaChannel *dma = (DmaChannel *)allocPage();
@@ -94,12 +103,15 @@ DmaChannel *dma_open_channel(dword channel) {
     assert(dma->channel != DCNone, "Invalid DMA Channel");
 
     dma->controlBlockBuffer = allocPage(); //(byte *)(((dword)dma) + sizeof(DmaChannel));
+    //log_println("CBUF: %8X", dma->controlBlockBuffer);
     dma->block = (DmaControlBlock *)((((dword)dma->controlBlockBuffer) + 31) & ~31);
+    //log_println("BBUF: %8X", dma->block);
     dma->block->res[0] = 0;
     dma->block->res[1] = 0;
     
     writeMmio(ARM_DMA_ENABLE, readMmio(ARM_DMA_ENABLE) | (1 << dma->channel));
-    timer_delay(3);
+    //timer_delay(3);
+    small_delay();
     writeMmio(ARM_DMACHAN_CS(dma->channel), CS_RESET);
 
     while(readMmio(ARM_DMACHAN_CS(dma->channel)) & CS_RESET);

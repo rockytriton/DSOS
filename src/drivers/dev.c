@@ -62,53 +62,31 @@ void dev_load_devices() {
     dev_muart_init();
     log_init(LTMUART);
 
+    log_println(" ");
+    log_println(" ");
+    log_println(" ");
+
     timer_sys_init();
+    clock_init();
 
     log_println("INIT VIDEO: ");
-    video_init();
+	video_init();
 
     //spi_init_master();
     
-    clock_init();
 
-    qword pt = clock_physical_ticks();
-
-
-    log_println("TESTING TIMER: %X - %d", pt, pt);
-    timer_delay(2000);
-
-    qword tick1 = clock_get_ticks();
-    timer_delay_us(1000);
-    qword tick2 = clock_get_ticks();
-
-    log_println("TICKSU %d - %d = %d", tick2, tick1, tick2 - tick1);
-    timer_delay(2000);
-
-    tick1 = clock_get_ticks();
-    timer_delay_us(1000);
-    tick2 = clock_get_ticks();
-
-    log_println("TICKSU %d - %d = %d", tick2, tick1, tick2 - tick1);
-    timer_delay(2000);
-
-    tick1 = clock_get_ticks();
-    timer_delay_ms(1);
-    tick2 = clock_get_ticks();
-
-    log_println("TICKSM %d - %d = %d", tick2, tick1, tick2 - tick1);
-    timer_delay(2000);
-
-    tick1 = clock_get_ticks();
-    timer_delay_ms(1);
-    tick2 = clock_get_ticks();
-
-    log_println("TICKSM %d - %d = %d", tick2, tick1, tick2 - tick1);
-    timer_delay(2000);
-
+    log_println("INITIALZIE SPI");
     //spi_init_master();
-    lcd_init();
+
+    log_println("INIT VIDEO: ");
+    //video_init();
+    
+    //lcd not yet ready...
+    //lcd_init();
 
     //char *msg = "OHAI";
     //spi_send_command(0x53, 4, msg);
-    dev_init_usb();
+
+    //USB not yet ready...
+    //dev_init_usb();
 }

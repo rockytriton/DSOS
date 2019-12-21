@@ -13,6 +13,9 @@
 #include <log.h>
 #include <common.h>
 #include <lib/dsstring.h>
+#include "../drivers/video/video.h"
+
+#include "../utils/rash/rash.h"
 
 void putc ( void* p, char c );
 void setDone();
@@ -54,7 +57,6 @@ struct MasterBootRecord
 int getId();
 
 void kernel_main() {
-	
 	irq_vector_init();
 	timer_init();
 	enable_interrupt_controller();
@@ -88,11 +90,13 @@ void kernel_main() {
 
     kernel_loading = 0;
 
+	rash_main();
+
     while(1) {
 
     }
 
-    doVideoCheck();
+    //doVideoCheck();
 
 }
 

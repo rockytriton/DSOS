@@ -5,6 +5,7 @@
 #include <peripherals/base.h>
 #include "utils.h"
 #include <sys/irq.h>
+#include <mailbox/mailbox.h>
 
 typedef void (*IRQ_HANDLER)(SysIrq, void *);
 
@@ -17,7 +18,7 @@ void spi_init_master() {
 
     log_println("TESTING TIMER TICKS");
     timer_delay(2000);
-
+/*
     irq_set_handler(ARM_IRQLOCAL0_CNTPNS, spi_handle_irq, 0);
 
     qword nCNTFRQ;
@@ -95,6 +96,7 @@ void spi_init_master() {
 
     log_println("TICKS %d - %d = %d", tick2, tick1, tick2 - tick1);
     timer_delay(2000);
+*/
 
     REGS_AUX = (AuxRegisters *)(PBASE + 0x00215000);
     SPI = (SpiRegisters *)(PBASE + 0x204000);
@@ -129,6 +131,16 @@ void spi_init_master() {
     timer_delay(500);
 
     log_println("SPI Master Initialized 2");
+
+    mailbox_power_check(0x07);
+
+    mailbox_power(DPTSpi, true);
+
+    timer_delay(5000);
+
+    mailbox_power_check(0x07);
+
+    timer_delay(5000);
 }
 
 dword sent = 0;
