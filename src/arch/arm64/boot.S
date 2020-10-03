@@ -89,6 +89,7 @@ getPN:
 setupPeripheralBase:
 	//default with PIB3 base
 	ldr x0, =0x3F000000
+	//ldr x0, =0xFE000000
 	ldr x1, addr_PBASE
 	str x0, [x1]
 
@@ -103,11 +104,13 @@ setupPeripheralBase:
 	//str x0, [x2]
 
 	cmp x0, #0xD08
+	ret
+	
 	b.eq PI3B
 
 	//otherwise assume PI4
 PI4:
-	ldr x0, =0xFE000000
+	ldr x0, =0x3F000000
 	ldr x1, addr_PBASE
 	str x0, [x1]
 	

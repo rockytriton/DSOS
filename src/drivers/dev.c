@@ -66,6 +66,8 @@ void dev_load_devices() {
     log_println(" ");
     log_println(" ");
 
+    log_println("INIT INIT: ");
+
     timer_sys_init();
     clock_init();
 
